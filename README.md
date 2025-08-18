@@ -48,8 +48,8 @@ A comprehensive real-time monitoring dashboard for a Mixture of Experts (MoE) AI
 - **Simulated LLM Processing** with realistic delays
 
 ### Deployment Options
-- **Option 1**: Frontend (Vercel) + Backend (Replit Public)
-- **Option 2**: Full Replit deployment with Core plan
+- **Option 1**: Frontend (Vercel) + Backend (Railway)
+- **Option 2**: Full Railway deployment
 
 ## 🚀 Quick Start
 
@@ -87,8 +87,8 @@ Incoming Request → MoE Router → Expert Agent Selection
 
 ### Environment Variables
 ```bash
-VITE_BACKEND_URL=https://your-replit-project.replit.dev
-VITE_WS_URL=wss://your-replit-project.replit.dev/ws
+VITE_BACKEND_URL=https://your-railway-app.railway.app
+VITE_WS_URL=wss://your-railway-app.railway.app/ws
 ```
 
 ### Load Balancing Thresholds
