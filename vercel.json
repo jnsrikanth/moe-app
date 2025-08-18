@@ -1,17 +1,5 @@
 {
-  "functions": {
-    "client/dist/index.html": {
-      "maxDuration": 10
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/client/dist/$1"
-    }
-  ],
-  "buildCommand": "npm run build",
+  "buildCommand": "vite build",
   "outputDirectory": "client/dist",
-  "installCommand": "npm install",
-  "devCommand": "npm run dev"
+  "installCommand": "npm install"
 }
