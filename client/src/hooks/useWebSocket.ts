@@ -7,8 +7,18 @@ export function useWebSocket() {
   const listeners = useRef<Map<string, (data: any) => void>>(new Map());
 
   useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    // Use environment variable for backend URL if available (for Vercel deployment)
+    const backendUrl = import.meta.env.VITE_WS_URL;
+    let wsUrl: string;
+    
+    if (backendUrl) {
+      // Use the configured backend URL (for Vercel deployment)
+      wsUrl = backendUrl;
+    } else {
+      // Use current host (for local development)
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      wsUrl = `${protocol}//${window.location.host}/ws`;
+    }
     
     try {
       ws.current = new WebSocket(wsUrl);

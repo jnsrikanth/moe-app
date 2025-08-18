@@ -12,7 +12,11 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const res = await fetch(url, {
+  // Use environment variable for backend URL if available (for Vercel deployment)
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+  const fullUrl = url.startsWith('http') ? url : `${backendUrl}${url}`;
+  
+  const res = await fetch(fullUrl, {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
@@ -29,7 +33,12 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    // Use environment variable for backend URL if available (for Vercel deployment)
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+    const url = queryKey.join("/") as string;
+    const fullUrl = url.startsWith('http') ? url : `${backendUrl}${url}`;
+    
+    const res = await fetch(fullUrl, {
       credentials: "include",
     });
 
