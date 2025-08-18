@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoE Routing Agent - BFSI Application</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'inter': ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'bfsi-blue': '#1E40AF',
+                        'processing-green': '#10B981',
+                        'idle-gray': '#6B7280',
+                        'bg-light': '#F9FAFB'
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'flow': 'flow 2s ease-in-out infinite',
+                        'processing': 'processing 1.5s ease-in-out infinite'
+                    },
+                    keyframes: {
+                        flow: {
+                            '0%, 100%': { opacity: '0.4' },
+                            '50%': { opacity: '1' }
+                        },
+                        processing: {
+                            '0%, 100%': { backgroundColor: '#6B7280' },
+                            '50%': { backgroundColor: '#10B981' }
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+</head>
+<body class="font-inter bg-bg-light min-h-screen">
+    <!-- @COMPONENT: DisclaimerBanner -->
+    <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
+        <div class="flex items-center justify-center">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-exclamation-triangle text-red-400 text-xl"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-red-700 font-bold text-lg text-center">
+                        ⚠️ PROOF OF CONCEPT - TECHNOLOGY DEMONSTRATION ONLY ⚠️
+                    </p>
+                    <p class="text-red-600 text-sm text-center mt-1">
+                        This interface uses fictitious data and non-proprietary datasets for demonstration purposes
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: DisclaimerBanner -->
+
+    <!-- @COMPONENT: Header -->
+    <header class="bg-white shadow-sm border-b border-gray-200 mb-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-6">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-network-wired text-bfsi-blue text-2xl mr-3"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">MoE Routing Agent</h1>
+                        <p class="text-sm text-gray-500">Banking, Financial Services & Insurance Intelligence</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-right">
+                        <p class="text-sm text-gray-500">Models: TinyLlama (1.1B) + Phi-3 Mini (3.8B)</p>
+                        <p class="text-xs text-green-600">● Connected</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!-- @END_COMPONENT: Header -->
+
+    <!-- @COMPONENT: MainDashboard -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+        
+        <!-- Control Panel -->
+        <!-- @COMPONENT: ControlPanel -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">Request Processing Control</h2>
+                <div class="flex space-x-3">
+                    <button data-event="click:simulateRequest" class="bg-bfsi-blue text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-play mr-2"></i>Simulate Loan Request
+                    </button>
+                    <button data-event="click:clearLogs" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition-colors">
+                        <i class="fas fa-trash mr-2"></i>Clear Logs
+                    </button>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <div class="text-sm text-gray-600 mb-1">Processing Status</div>
+                    <div class="text-lg font-semibold text-gray-900" data-bind="status">Idle</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <div class="text-sm text-gray-600 mb-1">Active Agents</div>
+                    <div class="text-lg font-semibold text-gray-900" data-bind="activeAgents">0/3</div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <div class="text-sm text-gray-600 mb-1">Processing Time</div>
+                    <div class="text-lg font-semibold text-gray-900" data-bind="processingTime">0.00s</div>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: ControlPanel -->
+
+        <!-- Schematic Flow Visualization -->
+        <!-- @COMPONENT: SchematicFlow -->
+        <div class="bg-white rounded-lg shadow-lg border border-gray-200 p-8 mb-8">
+            <h2 class="text-xl font-semibold text-gray-900 mb-6 text-center">MoE Agent Router Schematic Flow</h2>
+            
+            <div class="relative">
+                <!-- Flow Container -->
+                <div class="flex items-center justify-center space-x-8 lg:space-x-16">
+                    
+                    <!-- Incoming Request (LEFT) -->
+                    <!-- @COMPONENT: IncomingRequest -->
+                    <div class="flex flex-col items-center space-y-4">
+                        <div class="relative">
+                            <div class="w-24 h-24 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center border-2 border-blue-300 shadow-md">
+                                <i class="fas fa-file-invoice-dollar text-blue-600 text-2xl"></i>
+                            </div>
+                            <div class="absolute -top-2 -right-2 bg-blue-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center">
+                                <i class="fas fa-arrow-right"></i>
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-sm font-medium text-gray-900">Incoming Request</div>
+                            <div class="text-xs text-gray-500">Loan Application</div>
+                        </div>
+                        
+                        <!-- Request Details Dialog -->
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 max-w-48 text-xs" data-mock="true">
+                            <div class="font-medium text-blue-800 mb-1">Request Details:</div>
+                            <div class="text-blue-700">
+                                • Amount: $250,000<br>
+                                • Type: Home Loan<br>
+                                • Applicant: John Smith<br>
+                                • Credit Score: 720
+                            </div>
+                        </div>
+                    </div>
+                    <!-- @END_COMPONENT: IncomingRequest -->
+
+                    <!-- Flow Arrow 1 -->
+                    <div class="hidden lg:flex items-center">
+                        <div class="w-12 h-0.5 bg-gray-300 animate-flow"></div>
+                        <i class="fas fa-chevron-right text-gray-400 ml-2"></i>
+                    </div>
+
+                    <!-- MoE Router (CENTER) -->
+                    <!-- @COMPONENT: MoERouter -->
+                    <div class="flex flex-col items-center space-y-4">
+                        <div class="relative">
+                            <div class="w-32 h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg flex items-center justify-center border-2 border-gray-400 shadow-lg transition-all duration-1000" 
+                                 id="moe-router-box" data-implementation="Should change from grey to green during processing">
+                                <div class="text-center">
+                                    <i class="fas fa-brain text-gray-600 text-3xl mb-2"></i>
+                                    <div class="text-xs font-medium text-gray-700">MoE Router</div>
+                                </div>
+                            </div>
+                            <div class="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center opacity-0 transition-opacity" id="router-status">
+                                ●
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-sm font-medium text-gray-900">Phi-3 Mini (3.8B)</div>
+                            <div class="text-xs text-gray-500">Intelligent Decision Making</div>
+                        </div>
+                        
+                        <!-- Router Analysis Dialog -->
+                        <div class="bg-gray-50 border border-gray-300 rounded-lg p-3 max-w-64 text-xs opacity-0 transition-opacity" id="router-dialog" data-mock="true">
+                            <div class="font-medium text-gray-800 mb-2">Router Analysis:</div>
+                            <div class="text-gray-700 space-y-1">
+                                <div>✓ Request classified: Loan Application</div>
+                                <div>→ Routing to Credit Check Agent</div>
+                                <div>→ Routing to Fraud Detection Agent</div>
+                                <div>→ ESG evaluation required</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- @END_COMPONENT: MoERouter -->
+
+                    <!-- Flow Arrow 2 -->
+                    <div class="hidden lg:flex items-center">
+                        <div class="w-12 h-0.5 bg-gray-300 animate-flow"></div>
+                        <i class="fas fa-chevron-right text-gray-400 ml-2"></i>
+                    </div>
+
+                    <!-- Expert Agents (RIGHT) -->
+                    <!-- @COMPONENT: ExpertAgents -->
+                    <div class="flex flex-col space-y-6">
+                        
+                        <!-- Credit Check Expert Agent -->
+                        <div class="flex flex-col items-center space-y-2">
+                            <div class="relative">
+                                <div class="w-20 h-20 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg flex items-center justify-center border-2 border-gray-400 shadow-md transition-all duration-1000"
+                                     id="credit-agent-box" data-implementation="Changes to green when processing credit check">
+                                    <div class="text-center">
+                                        <i class="fas fa-chart-line text-gray-600 text-lg mb-1"></i>
+                                        <div class="text-xs font-medium text-gray-700">Credit</div>
+                                    </div>
+                                </div>
+                                <div class="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center opacity-0 transition-opacity" id="credit-status">
+                                    ●
+                                </div>
+                            </div>
+                            <div class="text-xs text-center text-gray-600">Credit Check<br>Expert Agent</div>
+                            
+                            <!-- Credit Agent Dialog -->
+                            <div class="bg-green-50 border border-green-200 rounded-lg p-2 max-w-48 text-xs opacity-0 transition-opacity" id="credit-dialog" data-mock="true">
+                                <div class="font-medium text-green-800 mb-1">Credit Analysis:</div>
+                                <div class="text-green-700">
+                                    • FICO Score: 720/850<br>
+                                    • Debt-to-Income: 28%<br>
+                                    • Status: ✓ Approved
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Fraud Detection Expert Agent -->
+                        <div class="flex flex-col items-center space-y-2">
+                            <div class="relative">
+                                <div class="w-20 h-20 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg flex items-center justify-center border-2 border-gray-400 shadow-md transition-all duration-1000"
+                                     id="fraud-agent-box" data-implementation="Changes to green when processing fraud detection">
+                                    <div class="text-center">
+                                        <i class="fas fa-shield-alt text-gray-600 text-lg mb-1"></i>
+                                        <div class="text-xs font-medium text-gray-700">Fraud</div>
+                                    </div>
+                                </div>
+                                <div class="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center opacity-0 transition-opacity" id="fraud-status">
+                                    ●
+                                </div>
+                            </div>
+                            <div class="text-xs text-center text-gray-600">Fraud Detection<br>Expert Agent</div>
+                            
+                            <!-- Fraud Agent Dialog -->
+                            <div class="bg-orange-50 border border-orange-200 rounded-lg p-2 max-w-48 text-xs opacity-0 transition-opacity" id="fraud-dialog" data-mock="true">
+                                <div class="font-medium text-orange-800 mb-1">Fraud Check:</div>
+                                <div class="text-orange-700">
+                                    • Identity: Verified<br>
+                                    • Patterns: Normal<br>
+                                    • Risk Score: Low<br>
+                                    • Status: ✓ Clear
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ESG Expert Agent -->
+                        <div class="flex flex-col items-center space-y-2">
+                            <div class="relative">
+                                <div class="w-20 h-20 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg flex items-center justify-center border-2 border-gray-400 shadow-md transition-all duration-1000"
+                                     id="esg-agent-box" data-implementation="Changes to green when processing ESG evaluation">
+                                    <div class="text-center">
+                                        <i class="fas fa-leaf text-gray-600 text-lg mb-1"></i>
+                                        <div class="text-xs font-medium text-gray-700">ESG</div>
+                                    </div>
+                                </div>
+                                <div class="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center opacity-0 transition-opacity" id="esg-status">
+                                    ●
+                                </div>
+                            </div>
+                            <div class="text-xs text-center text-gray-600">ESG Compliance<br>Expert Agent</div>
+                            
+                            <!-- ESG Agent Dialog -->
+                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-2 max-w-48 text-xs opacity-0 transition-opacity" id="esg-dialog" data-mock="true">
+                                <div class="font-medium text-blue-800 mb-1">ESG Evaluation:</div>
+                                <div class="text-blue-700">
+                                    • Property: Green Certified<br>
+                                    • Social Impact: Positive<br>
+                                    • Governance: Compliant<br>
+                                    • Status: ✓ Approved
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- @END_COMPONENT: ExpertAgents -->
+                </div>
+
+                <!-- Model Information -->
+                <div class="mt-8 text-center text-xs text-gray-500">
+                    TinyLlama (1.1B) powers Expert Agent classification • All agents use local deployment
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: SchematicFlow -->
+
+        <!-- Final Decision Panel -->
+        <!-- @COMPONENT: DecisionPanel -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">MoE Router Final Decision</h2>
+            
+            <div class="bg-gray-50 rounded-lg p-4" id="decision-panel">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 bg-gray-400 rounded-full mr-3" id="decision-indicator"></div>
+                        <span class="text-sm font-medium text-gray-700">Status: <span id="decision-status" data-bind="decisionStatus">Awaiting Analysis</span></span>
+                    </div>
+                    <div class="text-xs text-gray-500" id="decision-timestamp" data-bind="timestamp">--</div>
+                </div>
+                
+                <div class="bg-white rounded border p-4" id="decision-summary" data-mock="true">
+                    <div class="text-sm text-gray-600 mb-2">Comprehensive Analysis Summary:</div>
+                    <div class="text-gray-800 text-sm leading-relaxed">
+                        <div class="opacity-60">Final decision will appear here after all expert agents complete their analysis...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: DecisionPanel -->
+
+        <!-- Processing Logs -->
+        <!-- @COMPONENT: ProcessingLogs -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">Real-Time Processing Logs</h2>
+                <div class="flex items-center text-sm text-gray-500">
+                    <div class="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
+                    Live Monitoring
+                </div>
+            </div>
+            
+            <div class="bg-gray-900 rounded-lg p-4 h-64 overflow-y-auto font-mono text-sm" id="logs-container">
+                <div class="text-green-400">
+                    [System] MoE Routing Agent initialized<br>
+                    [System] Expert agents standing by<br>
+                    [System] Ready to process requests...<br>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: ProcessingLogs -->
+
+    </div>
+    <!-- @END_COMPONENT: MainDashboard -->
+
+    <!-- @STATE: isProcessing:boolean = false -->
+    <!-- @STATE: currentStep:number = 0 -->
+    <!-- @STATE: agentResponses:object = {} -->
+
+    <script>
+        (function() {
+            // TODO: Implement real LLM integration with TinyLlama and Phi-3 Mini models
+            // TODO: Implement WebSocket connection for real-time updates
+            // TODO: Implement actual routing logic and agent communication
+
+            let isProcessing = false;
+            let currentStep = 0;
+            const logs = document.getElementById('logs-container');
+            
+            function addLog(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const colorClass = type === 'success' ? 'text-green-400' : 
+                                 type === 'warning' ? 'text-yellow-400' : 
+                                 type === 'error' ? 'text-red-400' : 'text-blue-400';
+                
+                logs.innerHTML += `<div class="${colorClass}">[${timestamp}] ${message}</div>`;
+                logs.scrollTop = logs.scrollHeight;
+            }
+            
+            function setBoxState(boxId, statusId, isActive) {
+                const box = document.getElementById(boxId);
+                const status = document.getElementById(statusId);
+                
+                if (isActive) {
+                    box.className = box.className.replace('from-gray-200 to-gray-300 border-gray-400', 'from-green-200 to-green-300 border-green-400');
+                    box.querySelector('i').className = box.querySelector('i').className.replace('text-gray-600', 'text-green-600');
+                    status.style.opacity = '1';
+                } else {
+                    box.className = box.className.replace('from-green-200 to-green-300 border-green-400', 'from-gray-200 to-gray-300 border-gray-400');
+                    box.querySelector('i').className = box.querySelector('i').className.replace('text-green-600', 'text-gray-600');
+                    status.style.opacity = '0';
+                }
+            }
+            
+            function showDialog(dialogId, show = true) {
+                const dialog = document.getElementById(dialogId);
+                dialog.style.opacity = show ? '1' : '0';
+            }
+            
+            async function simulateProcessing() {
+                if (isProcessing) return;
+                
+                isProcessing = true;
+                addLog('New loan application received', 'info');
+                addLog('Initializing MoE Router analysis...', 'info');
+                
+                // Step 1: MoE Router processing
+                setBoxState('moe-router-box', 'router-status', true);
+                showDialog('router-dialog', true);
+                addLog('MoE Router analyzing request patterns...', 'info');
+                
+                await delay(2000);
+                
+                // Step 2: Route to Credit Check Agent
+                addLog('Routing to Credit Check Expert Agent', 'info');
+                setBoxState('credit-agent-box', 'credit-status', true);
+                showDialog('credit-dialog', true);
+                addLog('Credit Check Agent: Analyzing credit score and history...', 'info');
+                
+                await delay(1500);
+                addLog('Credit Check Agent: Analysis complete - APPROVED', 'success');
+                
+                await delay(500);
+                
+                // Step 3: Route to Fraud Detection Agent
+                addLog('Routing to Fraud Detection Expert Agent', 'info');
+                setBoxState('fraud-agent-box', 'fraud-status', true);
+                showDialog('fraud-dialog', true);
+                addLog('Fraud Detection Agent: Scanning for anomalies...', 'info');
+                
+                await delay(1800);
+                addLog('Fraud Detection Agent: No fraud indicators detected - CLEAR', 'success');
+                
+                await delay(500);
+                
+                // Step 4: Route to ESG Agent  
+                addLog('Routing to ESG Compliance Expert Agent', 'info');
+                setBoxState('esg-agent-box', 'esg-status', true);
+                showDialog('esg-dialog', true);
+                addLog('ESG Agent: Evaluating environmental and social factors...', 'info');
+                
+                await delay(1600);
+                addLog('ESG Agent: Property meets sustainability criteria - APPROVED', 'success');
+                
+                await delay(1000);
+                
+                // Step 5: Final decision
+                addLog('MoE Router: Consolidating expert agent responses...', 'info');
+                addLog('MoE Router: Generating final decision...', 'info');
+                
+                await delay(1000);
+                
+                // Update decision panel
+                const decisionPanel = document.getElementById('decision-panel');
+                const decisionIndicator = document.getElementById('decision-indicator');
+                const decisionStatus = document.getElementById('decision-status');
+                const decisionSummary = document.getElementById('decision-summary');
+                const timestamp = document.getElementById('decision-timestamp');
+                
+                decisionIndicator.className = 'w-4 h-4 bg-green-500 rounded-full mr-3';
+                decisionStatus.textContent = 'LOAN APPROVED';
+                decisionStatus.className = 'text-green-700 font-semibold';
+                timestamp.textContent = new Date().toLocaleString();
+                
+                decisionSummary.innerHTML = `
+                    <div class="text-sm text-gray-600 mb-2">Comprehensive Analysis Summary:</div>
+                    <div class="text-gray-800 text-sm leading-relaxed">
+                        <div class="bg-green-50 border border-green-200 rounded p-3 mb-2">
+                            <strong class="text-green-800">APPROVED</strong> - All expert agent evaluations passed successfully
+                        </div>
+                        <div class="space-y-1 text-xs">
+                            <div>✅ <strong>Credit Check:</strong> Score 720/850, DTI 28% - Within acceptable range</div>
+                            <div>✅ <strong>Fraud Detection:</strong> Identity verified, no suspicious patterns detected</div>
+                            <div>✅ <strong>ESG Compliance:</strong> Green-certified property, positive social impact</div>
+                        </div>
+                        <div class="mt-3 text-xs text-gray-600">
+                            <strong>Recommendation:</strong> Proceed with loan approval. Risk assessment: LOW
+                        </div>
+                    </div>
+                `;
+                
+                addLog('FINAL DECISION: LOAN APPROVED - All criteria met', 'success');
+                addLog('Processing completed successfully', 'success');
+                
+                // Reset after delay
+                setTimeout(() => {
+                    resetSystem();
+                }, 10000);
+            }
+            
+            function resetSystem() {
+                // Reset all boxes to idle state
+                setBoxState('moe-router-box', 'router-status', false);
+                setBoxState('credit-agent-box', 'credit-status', false);
+                setBoxState('fraud-agent-box', 'fraud-status', false);
+                setBoxState('esg-agent-box', 'esg-status', false);
+                
+                // Hide all dialogs
+                showDialog('router-dialog', false);
+                showDialog('credit-dialog', false);
+                showDialog('fraud-dialog', false);
+                showDialog('esg-dialog', false);
+                
+                // Reset decision panel
+                const decisionIndicator = document.getElementById('decision-indicator');
+                const decisionStatus = document.getElementById('decision-status');
+                decisionIndicator.className = 'w-4 h-4 bg-gray-400 rounded-full mr-3';
+                decisionStatus.textContent = 'Awaiting Analysis';
+                decisionStatus.className = '';
+                
+                isProcessing = false;
+                addLog('System reset - Ready for new requests', 'info');
+            }
+            
+            function clearLogs() {
+                document.getElementById('logs-container').innerHTML = `
+                    <div class="text-green-400">
+                        [System] MoE Routing Agent initialized<br>
+                        [System] Expert agents standing by<br>
+                        [System] Ready to process requests...<br>
+                    </div>
+                `;
+            }
+            
+            function delay(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+            
+            // Event listeners
+            document.addEventListener('click', function(e) {
+                if (e.target.closest('[data-event="click:simulateRequest"]')) {
+                    simulateProcessing();
+                }
+                if (e.target.closest('[data-event="click:clearLogs"]')) {
+                    clearLogs();
+                }
+            });
+            
+            // Auto-demo mode (optional)
+            // setTimeout(() => simulateProcessing(), 2000);
+            
+        })();
+    </script>
+</body>
+</html>

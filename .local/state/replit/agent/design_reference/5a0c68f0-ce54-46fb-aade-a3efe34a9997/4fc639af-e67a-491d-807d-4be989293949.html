@@ -1,0 +1,478 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoE Routing Agent - BFSI Application</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                colors: {
+                    'bfsi-primary': '#1E40AF',
+                    'bfsi-secondary': '#059669',
+                    'bfsi-accent': '#DC2626',
+                    'bfsi-muted': '#6B7280',
+                    'bfsi-processing': '#10B981'
+                },
+                fontFamily: {
+                    'inter': ['Inter', 'sans-serif']
+                },
+                animation: {
+                    'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    'flow': 'flow 2s ease-in-out infinite',
+                    'fade-in': 'fadeIn 0.5s ease-in-out'
+                },
+                keyframes: {
+                    flow: {
+                        '0%': { opacity: '0.3' },
+                        '50%': { opacity: '1' },
+                        '100%': { opacity: '0.3' }
+                    },
+                    fadeIn: {
+                        '0%': { opacity: '0', transform: 'translateY(-10px)' },
+                        '100%': { opacity: '1', transform: 'translateY(0)' }
+                    }
+                }
+            }
+        }
+    };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50 font-inter">
+    <!-- @COMPONENT: Header [Navigation and status] -->
+    <header class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <i class="fas fa-network-wired text-bfsi-primary text-2xl mr-3"></i>
+                    <h1 class="text-xl font-semibold text-gray-900">MoE Routing Agent</h1>
+                    <span class="ml-4 px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Live</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                        <span class="text-sm text-gray-600">System Active</span>
+                    </div>
+                    <button class="bg-bfsi-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-cog mr-2"></i>Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!-- @END_COMPONENT: Header -->
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- @COMPONENT: MainDashboard [Central routing visualization] -->
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-8 mb-8">
+            
+            <!-- Left Panel - Incoming Requests -->
+            <!-- @COMPONENT: IncomingRequests [Request queue and status] -->
+            <div class="xl:col-span-1">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-lg font-semibold text-gray-900">Incoming Requests</h2>
+                        <div class="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></div>
+                    </div>
+                    
+                    <!-- Active Request -->
+                    <div class="mb-4 p-4 bg-blue-50 border-l-4 border-bfsi-primary rounded-r-lg relative">
+                        <!-- Real-time dialog box -->
+                        <div class="absolute -top-2 -right-2 bg-bfsi-processing text-white text-xs px-2 py-1 rounded-full animate-fade-in">
+                            Processing...
+                        </div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-gray-900">REQ-2024-001</span>
+                            <span class="text-xs bg-bfsi-processing text-white px-2 py-1 rounded-full">Active</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">Personal Loan Application</p>
+                        <div class="text-xs text-gray-500">
+                            <p>Amount: $50,000</p>
+                            <p>Customer ID: CUST-789</p>
+                        </div>
+                    </div>
+
+                    <!-- Queue -->
+                    <!-- @MAP: queuedRequests.map(request => ( -->
+                    <div class="mb-3 p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-sm text-gray-700" data-bind="request.id">REQ-2024-002</span>
+                            <span class="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full">Queued</span>
+                        </div>
+                        <p class="text-xs text-gray-500" data-bind="request.type">Business Loan</p>
+                    </div>
+                    <!-- @END_MAP )) -->
+
+                    <div class="mb-3 p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-sm text-gray-700">REQ-2024-003</span>
+                            <span class="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full">Queued</span>
+                        </div>
+                        <p class="text-xs text-gray-500">Mortgage Application</p>
+                    </div>
+                </div>
+            </div>
+            <!-- @END_COMPONENT: IncomingRequests -->
+
+            <!-- Center Panel - MoE Router Visualization -->
+            <!-- @COMPONENT: MoERouter [Central routing logic display] -->
+            <div class="xl:col-span-2">
+                <div class="bg-white rounded-xl shadow-lg p-8 relative">
+                    <!-- MoE Router Dialog Box -->
+                    <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-bfsi-primary text-white px-4 py-2 rounded-lg text-sm animate-fade-in z-10">
+                        <i class="fas fa-brain mr-2"></i>
+                        Analyzing loan application for optimal routing...
+                    </div>
+
+                    <div class="text-center mb-8">
+                        <h2 class="text-xl font-semibold text-gray-900 mb-2">MoE Routing Agent</h2>
+                        <p class="text-sm text-gray-600">Central Intelligence Hub</p>
+                    </div>
+
+                    <!-- Central Router Visualization -->
+                    <div class="flex justify-center mb-8">
+                        <div class="relative">
+                            <div class="w-32 h-32 bg-gradient-to-br from-bfsi-primary to-bfsi-secondary rounded-full flex items-center justify-center shadow-lg animate-pulse-slow">
+                                <i class="fas fa-microchip text-3xl text-white"></i>
+                            </div>
+                            <!-- Processing indicator -->
+                            <div class="absolute inset-0 w-32 h-32 border-4 border-transparent border-t-bfsi-processing rounded-full animate-spin"></div>
+                        </div>
+                    </div>
+
+                    <!-- Routing Flow Paths -->
+                    <div class="grid grid-cols-3 gap-4">
+                        <!-- Path to Credit Check -->
+                        <div class="text-center">
+                            <div class="h-1 bg-gradient-to-r from-bfsi-primary to-green-500 rounded-full mb-2 animate-flow"></div>
+                            <span class="text-xs text-gray-600">Credit Analysis</span>
+                        </div>
+                        <!-- Path to Fraud Detection -->
+                        <div class="text-center">
+                            <div class="h-1 bg-gradient-to-r from-bfsi-primary to-red-500 rounded-full mb-2 animate-flow" style="animation-delay: 0.5s;"></div>
+                            <span class="text-xs text-gray-600">Fraud Check</span>
+                        </div>
+                        <!-- Path to ESG -->
+                        <div class="text-center">
+                            <div class="h-1 bg-gradient-to-r from-bfsi-primary to-blue-500 rounded-full mb-2 animate-flow" style="animation-delay: 1s;"></div>
+                            <span class="text-xs text-gray-600">ESG Compliance</span>
+                        </div>
+                    </div>
+
+                    <!-- Current Analysis Status -->
+                    <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+                        <h3 class="text-sm font-medium text-gray-900 mb-2">Current Analysis</h3>
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-gray-600">Request Classification</span>
+                                <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Complete</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-gray-600">Expert Agent Selection</span>
+                                <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">In Progress</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-gray-600">Result Aggregation</span>
+                                <span class="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">Pending</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- @END_COMPONENT: MoERouter -->
+
+            <!-- Right Panel - Expert Agents -->
+            <!-- @COMPONENT: ExpertAgents [Three expert agent blocks] -->
+            <div class="xl:col-span-1 space-y-6">
+                
+                <!-- Credit Check Expert Agent -->
+                <div class="bg-white rounded-xl shadow-lg p-6 relative transition-colors duration-500 border-l-4 border-green-500">
+                    <!-- Dialog box for Credit Check -->
+                    <div class="absolute -top-3 left-4 bg-green-500 text-white text-xs px-3 py-1 rounded-lg animate-fade-in">
+                        Credit score: 720 - Approved
+                    </div>
+                    
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center">
+                            <i class="fas fa-credit-card text-green-500 text-xl mr-3"></i>
+                            <h3 class="text-sm font-semibold text-gray-900">Credit Check Agent</h3>
+                        </div>
+                        <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-gray-600">Status</span>
+                            <span class="text-green-600 font-medium">Processing</span>
+                        </div>
+                        <div class="flex justify-between text-xs">
+                            <span class="text-gray-600">Response Time</span>
+                            <span class="text-gray-900">1.2s</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-green-500 h-2 rounded-full transition-all duration-1000" style="width: 85%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fraud Detection Expert Agent -->
+                <div class="bg-white rounded-xl shadow-lg p-6 relative transition-colors duration-500 border-l-4 border-red-500">
+                    <!-- Dialog box for Fraud Detection -->
+                    <div class="absolute -top-3 left-4 bg-red-500 text-white text-xs px-3 py-1 rounded-lg animate-fade-in">
+                        No fraud indicators detected
+                    </div>
+                    
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center">
+                            <i class="fas fa-shield-alt text-red-500 text-xl mr-3"></i>
+                            <h3 class="text-sm font-semibold text-gray-900">Fraud Detection Agent</h3>
+                        </div>
+                        <div class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-gray-600">Status</span>
+                            <span class="text-red-600 font-medium">Processing</span>
+                        </div>
+                        <div class="flex justify-between text-xs">
+                            <span class="text-gray-600">Response Time</span>
+                            <span class="text-gray-900">0.8s</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-red-500 h-2 rounded-full transition-all duration-1000" style="width: 92%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ESG Expert Agent -->
+                <div class="bg-white rounded-xl shadow-lg p-6 relative transition-colors duration-500 border-l-4 border-blue-500">
+                    <!-- Dialog box for ESG -->
+                    <div class="absolute -top-3 left-4 bg-blue-500 text-white text-xs px-3 py-1 rounded-lg animate-fade-in">
+                        ESG compliance verified
+                    </div>
+                    
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center">
+                            <i class="fas fa-leaf text-blue-500 text-xl mr-3"></i>
+                            <h3 class="text-sm font-semibold text-gray-900">ESG Expert Agent</h3>
+                        </div>
+                        <div class="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-gray-600">Status</span>
+                            <span class="text-blue-600 font-medium">Processing</span>
+                        </div>
+                        <div class="flex justify-between text-xs">
+                            <span class="text-gray-600">Response Time</span>
+                            <span class="text-gray-900">1.5s</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-blue-500 h-2 rounded-full transition-all duration-1000" style="width: 78%"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <!-- @END_COMPONENT: ExpertAgents -->
+        </div>
+        <!-- @END_COMPONENT: MainDashboard -->
+
+        <!-- @COMPONENT: DecisionSummary [Final routing decision display] -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            <!-- Real-time Activity Log -->
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-lg font-semibold text-gray-900">Real-time Activity Log</h2>
+                    <button class="text-sm text-bfsi-primary hover:text-blue-800">
+                        <i class="fas fa-download mr-1"></i>Export
+                    </button>
+                </div>
+                
+                <div class="space-y-3 max-h-64 overflow-y-auto">
+                    <!-- @MAP: activityLogs.map(log => ( -->
+                    <div class="flex items-start space-x-3 animate-fade-in">
+                        <div class="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+                        <div class="flex-1">
+                            <p class="text-sm text-gray-900" data-bind="log.message">
+                                Credit Check Agent responded: Score 720, Income verified, Debt-to-income ratio acceptable
+                            </p>
+                            <span class="text-xs text-gray-500" data-bind="log.timestamp">14:32:15</span>
+                        </div>
+                    </div>
+                    <!-- @END_MAP )) -->
+
+                    <div class="flex items-start space-x-3 animate-fade-in">
+                        <div class="w-2 h-2 bg-red-500 rounded-full mt-2"></div>
+                        <div class="flex-1">
+                            <p class="text-sm text-gray-900">
+                                Fraud Detection Agent completed analysis: No suspicious patterns detected
+                            </p>
+                            <span class="text-xs text-gray-500">14:32:12</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start space-x-3 animate-fade-in">
+                        <div class="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+                        <div class="flex-1">
+                            <p class="text-sm text-gray-900">
+                                ESG Expert Agent verified environmental compliance for loan purpose
+                            </p>
+                            <span class="text-xs text-gray-500">14:32:08</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start space-x-3">
+                        <div class="w-2 h-2 bg-bfsi-primary rounded-full mt-2"></div>
+                        <div class="flex-1">
+                            <p class="text-sm text-gray-900">
+                                MoE Router initiated routing for Personal Loan Application REQ-2024-001
+                            </p>
+                            <span class="text-xs text-gray-500">14:32:02</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Decision Summary -->
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-6">Decision Summary</h2>
+                
+                <!-- Final Decision -->
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-lg font-semibold text-green-800">Loan Approved</h3>
+                        <i class="fas fa-check-circle text-2xl text-green-500"></i>
+                    </div>
+                    <p class="text-sm text-green-700">
+                        Application REQ-2024-001 has been approved based on comprehensive analysis from all expert agents.
+                    </p>
+                </div>
+
+                <!-- Expert Agent Results -->
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center">
+                            <i class="fas fa-credit-card text-green-500 mr-3"></i>
+                            <span class="text-sm font-medium text-gray-900">Credit Assessment</span>
+                        </div>
+                        <span class="text-sm text-green-600 font-medium">✓ Passed</span>
+                    </div>
+
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center">
+                            <i class="fas fa-shield-alt text-green-500 mr-3"></i>
+                            <span class="text-sm font-medium text-gray-900">Fraud Detection</span>
+                        </div>
+                        <span class="text-sm text-green-600 font-medium">✓ Clean</span>
+                    </div>
+
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center">
+                            <i class="fas fa-leaf text-green-500 mr-3"></i>
+                            <span class="text-sm font-medium text-gray-900">ESG Compliance</span>
+                        </div>
+                        <span class="text-sm text-green-600 font-medium">✓ Compliant</span>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="mt-6 flex space-x-3">
+                    <button class="flex-1 bg-bfsi-primary text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors" data-event="click:handleApproval">
+                        <i class="fas fa-check mr-2"></i>Confirm Approval
+                    </button>
+                    <button class="flex-1 border border-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-50 transition-colors" data-event="click:handleReview">
+                        <i class="fas fa-eye mr-2"></i>Review Details
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: DecisionSummary -->
+
+        <!-- @COMPONENT: SystemMetrics [Performance and status indicators] -->
+        <div class="mt-8 grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="bg-white rounded-xl shadow-lg p-6 text-center">
+                <i class="fas fa-tachometer-alt text-2xl text-bfsi-primary mb-3"></i>
+                <h3 class="text-2xl font-bold text-gray-900" data-bind="metrics.avgResponseTime">1.2s</h3>
+                <p class="text-sm text-gray-600">Avg Response Time</p>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 text-center">
+                <i class="fas fa-tasks text-2xl text-green-500 mb-3"></i>
+                <h3 class="text-2xl font-bold text-gray-900" data-bind="metrics.processedRequests">1,247</h3>
+                <p class="text-sm text-gray-600">Processed Today</p>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 text-center">
+                <i class="fas fa-percentage text-2xl text-blue-500 mb-3"></i>
+                <h3 class="text-2xl font-bold text-gray-900" data-bind="metrics.accuracyRate">99.2%</h3>
+                <p class="text-sm text-gray-600">Accuracy Rate</p>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 text-center">
+                <i class="fas fa-clock text-2xl text-orange-500 mb-3"></i>
+                <h3 class="text-2xl font-bold text-gray-900" data-bind="metrics.uptime">99.9%</h3>
+                <p class="text-sm text-gray-600">System Uptime</p>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: SystemMetrics -->
+    </div>
+
+    <script>
+        // TODO: Implement WebSocket connection for real-time updates
+        // TODO: Implement business logic for MoE routing
+        // TODO: Add API integration for expert agents
+        
+        (function() {
+            // Mock WebSocket connection simulation
+            // @FUNCTIONALITY: This should connect to actual WebSocket server for real-time updates
+            
+            let isProcessing = true;
+            let processingStep = 0;
+            
+            // Simulate real-time processing updates
+            const simulateProcessing = () => {
+                const steps = [
+                    "Parsing incoming loan application...",
+                    "Classifying request type: Personal Loan",
+                    "Routing to Credit Check Agent...",
+                    "Routing to Fraud Detection Agent...", 
+                    "Routing to ESG Expert Agent...",
+                    "Aggregating expert responses...",
+                    "Generating final decision..."
+                ];
+                
+                if (processingStep < steps.length && isProcessing) {
+                    // Update dialog boxes with current processing step
+                    console.log(`Processing: ${steps[processingStep]}`);
+                    processingStep++;
+                    setTimeout(simulateProcessing, 2000);
+                }
+            };
+            
+            // Start simulation
+            setTimeout(simulateProcessing, 1000);
+            
+            // Mock color transition effects for processing states
+            const expertAgents = document.querySelectorAll('.border-l-4');
+            
+            expertAgents.forEach((agent, index) => {
+                setTimeout(() => {
+                    agent.classList.add('bg-green-50');
+                    setTimeout(() => {
+                        agent.classList.remove('bg-green-50');
+                    }, 3000);
+                }, index * 1000);
+            });
+            
+        })();
+    </script>
+</body>
+</html>

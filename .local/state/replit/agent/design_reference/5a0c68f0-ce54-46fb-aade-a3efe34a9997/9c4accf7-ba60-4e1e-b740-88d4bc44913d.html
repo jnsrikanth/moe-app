@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoE Routing Agent - BFSI Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'inter': ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary': '#1E40AF',
+                        'success': '#10B981',
+                        'neutral': '#6B7280',
+                        'accent': '#3B82F6',
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'flow': 'flow 2s ease-in-out infinite',
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes flow {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.1); }
+        }
+        .flow-line {
+            background: linear-gradient(90deg, transparent, #3B82F6, transparent);
+            background-size: 100px 2px;
+            animation: flowLine 2s linear infinite;
+        }
+        @keyframes flowLine {
+            0% { background-position: -100px 0; }
+            100% { background-position: 200px 0; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-inter">
+    <!-- @COMPONENT: Header [navigation and system status] -->
+    <header class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-full px-6 py-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-network-wired text-primary text-xl"></i>
+                        <h1 class="text-2xl font-bold text-gray-900">MoE Routing Agent</h1>
+                    </div>
+                    <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                        System Online
+                    </span>
+                </div>
+                <div class="flex items-center space-x-6">
+                    <div class="text-sm text-gray-600">
+                        <span class="font-medium">Active Requests:</span> 
+                        <span data-bind="activeRequests" class="text-primary font-semibold">24</span>
+                    </div>
+                    <div class="text-sm text-gray-600">
+                        <span class="font-medium">Avg Response Time:</span> 
+                        <span data-bind="avgResponseTime" class="text-success font-semibold">1.2s</span>
+                    </div>
+                    <button class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-cog mr-2"></i>Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!-- @END_COMPONENT: Header -->
+
+    <div class="max-w-full px-6 py-6">
+        <!-- @COMPONENT: SystemOverview [real-time metrics dashboard] -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Total Requests</p>
+                        <p class="text-3xl font-bold text-gray-900" data-bind="totalRequests">1,247</p>
+                    </div>
+                    <div class="bg-blue-100 p-3 rounded-lg">
+                        <i class="fas fa-chart-line text-primary text-xl"></i>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <span class="text-sm text-green-600 font-medium">+12.5%</span>
+                    <span class="text-sm text-gray-500 ml-1">from last hour</span>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Success Rate</p>
+                        <p class="text-3xl font-bold text-gray-900" data-bind="successRate">98.7%</p>
+                    </div>
+                    <div class="bg-green-100 p-3 rounded-lg">
+                        <i class="fas fa-check-circle text-success text-xl"></i>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <span class="text-sm text-green-600 font-medium">+0.3%</span>
+                    <span class="text-sm text-gray-500 ml-1">from last hour</span>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Active Agents</p>
+                        <p class="text-3xl font-bold text-gray-900" data-bind="activeAgents">7</p>
+                    </div>
+                    <div class="bg-purple-100 p-3 rounded-lg">
+                        <i class="fas fa-robot text-purple-600 text-xl"></i>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <span class="text-sm text-blue-600 font-medium">2 auto-scaled</span>
+                    <span class="text-sm text-gray-500 ml-1">this hour</span>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">System Load</p>
+                        <p class="text-3xl font-bold text-gray-900" data-bind="systemLoad">67%</p>
+                    </div>
+                    <div class="bg-orange-100 p-3 rounded-lg">
+                        <i class="fas fa-server text-orange-600 text-xl"></i>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-orange-500 h-2 rounded-full" style="width: 67%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: SystemOverview -->
+
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+            <!-- @COMPONENT: RoutingDiagram [main MoE routing visualization] -->
+            <div class="xl:col-span-2">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-bold text-gray-900">MoE Routing Network</h2>
+                        <div class="flex items-center space-x-2">
+                            <span class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
+                            <span class="text-sm text-gray-600">Live</span>
+                        </div>
+                    </div>
+
+                    <div class="relative">
+                        <!-- Central MoE Router -->
+                        <div class="flex justify-center mb-12">
+                            <div class="relative bg-primary text-white rounded-2xl p-6 w-64 h-32 flex flex-col justify-center items-center shadow-lg">
+                                <div class="absolute top-2 right-2">
+                                    <span class="bg-green-400 text-green-900 text-xs font-medium px-2 py-1 rounded-full">
+                                        Processing
+                                    </span>
+                                </div>
+                                <h3 class="text-lg font-bold mb-2">MoE Router</h3>
+                                <div class="text-sm opacity-90">
+                                    <div>Queue: <span data-bind="routerQueue">12</span></div>
+                                    <div>CPU: <span data-bind="routerCPU">45%</span></div>
+                                    <div>Memory: <span data-bind="routerMemory">2.1GB</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Flow Lines -->
+                        <div class="absolute top-32 left-1/2 transform -translate-x-1/2 w-px h-16 bg-gray-300"></div>
+                        <div class="absolute top-48 left-1/4 w-1/2 h-px bg-gray-300"></div>
+                        <div class="absolute top-48 left-1/4 w-px h-8 bg-gray-300"></div>
+                        <div class="absolute top-48 right-1/4 w-px h-8 bg-gray-300"></div>
+
+                        <!-- Expert Agents Row -->
+                        <div class="grid grid-cols-3 gap-8 mb-8">
+                            <!-- Credit Check Agent -->
+                            <div class="relative bg-success text-white rounded-2xl p-4 h-40 flex flex-col justify-between shadow-lg">
+                                <div class="absolute top-2 right-2">
+                                    <span class="bg-green-300 text-green-900 text-xs font-medium px-2 py-1 rounded-full">
+                                        Active
+                                    </span>
+                                </div>
+                                <div>
+                                    <h4 class="font-bold text-sm mb-1">Credit Check Agent</h4>
+                                    <div class="text-xs opacity-90 space-y-1">
+                                        <div>Instances: <span data-bind="creditInstances">2</span></div>
+                                        <div>Queue: <span data-bind="creditQueue">5</span></div>
+                                        <div>CPU: <span data-bind="creditCPU">78%</span></div>
+                                        <div>Memory: <span data-bind="creditMemory">1.8GB</span></div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs opacity-75">RAG Enabled</span>
+                                    <i class="fas fa-credit-card text-lg"></i>
+                                </div>
+                            </div>
+
+                            <!-- Fraud Detection Agent -->
+                            <div class="relative bg-neutral text-white rounded-2xl p-4 h-40 flex flex-col justify-between shadow-lg">
+                                <div class="absolute top-2 right-2">
+                                    <span class="bg-gray-300 text-gray-900 text-xs font-medium px-2 py-1 rounded-full">
+                                        Idle
+                                    </span>
+                                </div>
+                                <div>
+                                    <h4 class="font-bold text-sm mb-1">Fraud Detection Agent</h4>
+                                    <div class="text-xs opacity-90 space-y-1">
+                                        <div>Instances: <span data-bind="fraudInstances">1</span></div>
+                                        <div>Queue: <span data-bind="fraudQueue">0</span></div>
+                                        <div>CPU: <span data-bind="fraudCPU">12%</span></div>
+                                        <div>Memory: <span data-bind="fraudMemory">0.9GB</span></div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs opacity-75">External API</span>
+                                    <i class="fas fa-shield-alt text-lg"></i>
+                                </div>
+                            </div>
+
+                            <!-- ESG Agent -->
+                            <div class="relative bg-success text-white rounded-2xl p-4 h-40 flex flex-col justify-between shadow-lg">
+                                <div class="absolute top-2 right-2">
+                                    <span class="bg-green-300 text-green-900 text-xs font-medium px-2 py-1 rounded-full">
+                                        Active
+                                    </span>
+                                </div>
+                                <div>
+                                    <h4 class="font-bold text-sm mb-1">ESG Expert Agent</h4>
+                                    <div class="text-xs opacity-90 space-y-1">
+                                        <div>Instances: <span data-bind="esgInstances">3</span></div>
+                                        <div>Queue: <span data-bind="esgQueue">7</span></div>
+                                        <div>CPU: <span data-bind="esgCPU">65%</span></div>
+                                        <div>Memory: <span data-bind="esgMemory">2.4GB</span></div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs opacity-75">Data Fetch</span>
+                                    <i class="fas fa-leaf text-lg"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Auto-scaled Instances -->
+                        <div class="border-t border-gray-200 pt-6">
+                            <h4 class="text-sm font-medium text-gray-700 mb-4">Auto-scaled Instances</h4>
+                            <div class="grid grid-cols-4 gap-4">
+                                <!-- @MAP: autoScaledInstances.map(instance => ( -->
+                                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+                                    <div class="text-xs font-medium text-blue-800">Credit-2</div>
+                                    <div class="text-xs text-blue-600 mt-1">CPU: 34%</div>
+                                </div>
+                                <div class="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                                    <div class="text-xs font-medium text-green-800">ESG-2</div>
+                                    <div class="text-xs text-green-600 mt-1">CPU: 52%</div>
+                                </div>
+                                <div class="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                                    <div class="text-xs font-medium text-green-800">ESG-3</div>
+                                    <div class="text-xs text-green-600 mt-1">CPU: 41%</div>
+                                </div>
+                                <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
+                                    <div class="text-xs font-medium text-gray-500">Standby</div>
+                                    <div class="text-xs text-gray-400 mt-1">Ready</div>
+                                </div>
+                                <!-- @END_MAP )) -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- @END_COMPONENT: RoutingDiagram -->
+
+            <!-- @COMPONENT: RequestMonitor [real-time request tracking] -->
+            <div>
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">Live Request Monitor</h3>
+                    
+                    <!-- @MAP: liveRequests.map(request => ( -->
+                    <div class="space-y-4 max-h-96 overflow-y-auto">
+                        <div class="border border-green-200 bg-green-50 rounded-lg p-4">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-sm font-medium text-green-800">Loan Application #LA-2024-1247</span>
+                                <span class="bg-green-200 text-green-800 text-xs font-medium px-2 py-1 rounded-full">Processing</span>
+                            </div>
+                            <div class="text-xs text-green-700 space-y-1">
+                                <div>→ Credit Check Agent: Analyzing credit score</div>
+                                <div>→ ESG Agent: Evaluating ESG compliance</div>
+                                <div class="text-green-600">Response pending from Credit Check...</div>
+                            </div>
+                            <div class="mt-2 text-xs text-green-600">Started: 2m 15s ago</div>
+                        </div>
+
+                        <div class="border border-blue-200 bg-blue-50 rounded-lg p-4">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-sm font-medium text-blue-800">Personal Loan #PL-2024-0892</span>
+                                <span class="bg-blue-200 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">Routing</span>
+                            </div>
+                            <div class="text-xs text-blue-700 space-y-1">
+                                <div>→ Analyzing request context</div>
+                                <div>→ Determining optimal agent routing</div>
+                                <div class="text-blue-600">Routing to Credit Check Agent...</div>
+                            </div>
+                            <div class="mt-2 text-xs text-blue-600">Started: 45s ago</div>
+                        </div>
+
+                        <div class="border border-gray-200 bg-gray-50 rounded-lg p-4">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-sm font-medium text-gray-800">Credit Card #CC-2024-0456</span>
+                                <span class="bg-gray-200 text-gray-800 text-xs font-medium px-2 py-1 rounded-full">Completed</span>
+                            </div>
+                            <div class="text-xs text-gray-700 space-y-1">
+                                <div class="text-green-600">✓ Credit Check: Approved (Score: 742)</div>
+                                <div class="text-green-600">✓ Fraud Detection: Clean</div>
+                                <div class="text-green-600">✓ ESG Compliance: Verified</div>
+                            </div>
+                            <div class="mt-2 text-xs text-gray-600">Completed: 3m ago | Decision: Approved</div>
+                        </div>
+                    </div>
+                    <!-- @END_MAP )) -->
+                </div>
+
+                <!-- @COMPONENT: SystemControls [monitoring controls] -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">System Controls</h3>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Auto-scaling Threshold</label>
+                            <div class="flex items-center space-x-3">
+                                <input type="range" min="50" max="90" value="75" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" data-implementation="Should update auto-scaling threshold">
+                                <span class="text-sm font-medium text-gray-900">75%</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Request Priority</label>
+                            <select class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent" data-implementation="Should handle priority changes">
+                                <option>Credit Applications</option>
+                                <option>Fraud Detection</option>
+                                <option>ESG Compliance</option>
+                                <option>All Equal</option>
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <button class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors" data-event="click:pauseSystem">
+                                <i class="fas fa-pause mr-2"></i>Pause
+                            </button>
+                            <button class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors" data-event="click:resetSystem">
+                                <i class="fas fa-refresh mr-2"></i>Reset
+                            </button>
+                        </div>
+
+                        <div class="pt-4 border-t border-gray-200">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-medium text-gray-700">Memory Usage</span>
+                                <span class="text-sm text-gray-600">6.8GB / 16GB</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-primary h-2 rounded-full" style="width: 42.5%"></div>
+                            </div>
+                        </div>
+
+                        <div class="pt-2">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-medium text-gray-700">Network I/O</span>
+                                <span class="text-sm text-gray-600">2.4 MB/s</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-green-500 h-2 rounded-full" style="width: 60%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- @END_COMPONENT: SystemControls -->
+            </div>
+            <!-- @END_COMPONENT: RequestMonitor -->
+        </div>
+
+        <!-- @COMPONENT: DetailedMetrics [comprehensive system analytics] -->
+        <div class="mt-8">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h3 class="text-lg font-bold text-gray-900 mb-6">Detailed Performance Metrics</h3>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
+                    <div class="space-y-4">
+                        <h4 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Routing Metrics</h4>
+                        <div class="space-y-3">
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">Avg Routing Time</span>
+                                <span class="text-sm font-medium" data-bind="avgRoutingTime">0.23s</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">Context Analysis</span>
+                                <span class="text-sm font-medium" data-bind="contextAnalysisTime">0.45s</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">Load Distribution</span>
+                                <span class="text-sm font-medium text-green-600">Optimal</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <h4 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Agent Performance</h4>
+                        <div class="space-y-3">
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">Credit Check Accuracy</span>
+                                <span class="text-sm font-medium" data-bind="creditAccuracy">96.8%</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">Fraud Detection Rate</span>
+                                <span class="text-sm font-medium" data-bind="fraudDetectionRate">99.2%</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">ESG Compliance Rate</span>
+                                <span class="text-sm font-medium" data-bind="esgComplianceRate">94.5%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <h4 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Queue Management</h4>
+                        <div class="space-y-3">
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">Max Queue Length</span>
+                                <span class="text-sm font-medium" data-bind="maxQueueLength">15</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">Avg Wait Time</span>
+                                <span class="text-sm font-medium" data-bind="avgWaitTime">1.8s</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">Priority Requests</span>
+                                <span class="text-sm font-medium" data-bind="priorityRequests">3</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <h4 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">API Integration</h4>
+                        <div class="space-y-3">
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">OpenAI API Latency</span>
+                                <span class="text-sm font-medium" data-bind="openaiLatency">0.8s</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">RAG Query Time</span>
+                                <span class="text-sm font-medium" data-bind="ragQueryTime">0.6s</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">External API Calls</span>
+                                <span class="text-sm font-medium" data-bind="externalApiCalls">147</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: DetailedMetrics -->
+    </div>
+
+    <!-- @COMPONENT: RealTimeDialog [floating dialog for real-time analysis] -->
+    <div id="realTimeDialog" class="fixed bottom-6 right-6 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 transform transition-transform duration-300 translate-y-full">
+        <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+            <h4 class="font-semibold text-gray-900">Real-Time Analysis</h4>
+            <button class="text-gray-400 hover:text-gray-600" onclick="toggleDialog()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-4 max-h-80 overflow-y-auto">
+            <div class="space-y-3 text-sm">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div class="font-medium text-blue-800">Analyzing Request LA-2024-1247</div>
+                    <div class="text-blue-700 mt-1">
+                        → Extracting credit requirements<br>
+                        → Identifying ESG parameters<br>
+                        → Routing to Credit Check Agent...
+                    </div>
+                </div>
+                <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <div class="font-medium text-green-800">Credit Check Response</div>
+                    <div class="text-green-700 mt-1">
+                        → Credit Score: 742 (Good)<br>
+                        → Payment History: Clean<br>
+                        → Debt-to-Income: 28%
+                    </div>
+                </div>
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <div class="font-medium text-yellow-800">ESG Analysis Pending</div>
+                    <div class="text-yellow-700 mt-1">
+                        → Waiting for ESG Agent response<br>
+                        → Queue position: 2<br>
+                        → Estimated completion: 45s
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: RealTimeDialog -->
+
+    <script>
+        // TODO: Implement WebSocket connections for real-time updates
+        // TODO: Integrate OpenAI API for actual agent processing
+        // TODO: Implement auto-scaling logic and load balancing
+        
+        (function() {
+            let dialogVisible = false;
+
+            // Simulate real-time updates
+            function simulateRealTimeUpdates() {
+                // TODO: Replace with actual WebSocket implementation
+                setInterval(() => {
+                    // Simulate metrics updates
+                    document.querySelector('[data-bind="activeRequests"]').textContent = 
+                        Math.floor(Math.random() * 30) + 15;
+                    
+                    // Simulate CPU updates for agents
+                    document.querySelector('[data-bind="routerCPU"]').textContent = 
+                        Math.floor(Math.random() * 30) + 40 + '%';
+                    
+                    document.querySelector('[data-bind="creditCPU"]').textContent = 
+                        Math.floor(Math.random() * 40) + 60 + '%';
+                    
+                    // TODO: Implement actual agent communication
+                }, 3000);
+            }
+
+            window.toggleDialog = function() {
+                const dialog = document.getElementById('realTimeDialog');
+                dialogVisible = !dialogVisible;
+                
+                if (dialogVisible) {
+                    dialog.style.transform = 'translateY(0)';
+                } else {
+                    dialog.style.transform = 'translateY(100%)';
+                }
+            };
+
+            // Auto-show dialog when new requests arrive
+            setTimeout(() => {
+                window.toggleDialog();
+            }, 2000);
+
+            // Initialize simulation
+            simulateRealTimeUpdates();
+
+            // TODO: Implement agent scaling logic
+            // TODO: Add request prioritization system
+            // TODO: Integrate RAG system for Credit Check agents
+            // TODO: Add fraud detection API integration
+            // TODO: Implement ESG data fetching capabilities
+        })();
+    </script>
+</body>
+</html>

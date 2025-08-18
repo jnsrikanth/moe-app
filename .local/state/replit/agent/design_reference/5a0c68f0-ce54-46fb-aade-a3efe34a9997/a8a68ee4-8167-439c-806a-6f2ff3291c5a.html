@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoE BFSI Routing Agent Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/heroicons@2.0.18/24/outline/index.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'ms-blue': '#0078D4',
+                        'ms-green': '#107C10',
+                        'ms-red': '#D13438',
+                        'ms-purple': '#8764B8',
+                        'ms-orange': '#FF8C00',
+                        'ms-gray-50': '#FAFAFA',
+                        'ms-gray-100': '#F3F2F1',
+                        'ms-gray-600': '#605E5C',
+                        'ms-gray-700': '#323130',
+                        'ms-gray-500': '#8A8886'
+                    },
+                    fontFamily: {
+                        'system': ['Segoe UI', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                        'mono': ['Consolas', 'Monaco', 'Courier New', 'monospace']
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'bounce-slow': 'bounce 2s infinite',
+                        'flow': 'flow 2s ease-in-out infinite'
+                    },
+                    keyframes: {
+                        flow: {
+                            '0%, 100%': { opacity: '0.4' },
+                            '50%': { opacity: '1' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .routing-line {
+            position: absolute;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #0078D4, transparent);
+            animation: flow 2s ease-in-out infinite;
+        }
+        .agent-pulse {
+            box-shadow: 0 0 0 0 rgba(7, 120, 212, 0.7);
+            animation: pulse-ring 2s infinite;
+        }
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(7, 120, 212, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(7, 120, 212, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(7, 120, 212, 0); }
+        }
+        .metric-card {
+            transition: all 0.3s ease;
+        }
+        .metric-card:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="bg-ms-gray-50 font-system text-ms-gray-700 min-h-screen">
+    <!-- @COMPONENT: Header Navigation -->
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-brain text-ms-blue text-2xl"></i>
+                        <h1 class="text-xl font-semibold text-ms-gray-700">MoE BFSI Router</h1>
+                    </div>
+                    <span class="bg-ms-green text-white px-3 py-1 rounded-full text-sm font-medium">Active</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2 bg-ms-gray-100 rounded-lg px-3 py-2">
+                        <i class="fas fa-clock text-ms-gray-600"></i>
+                        <span class="text-sm font-mono" data-bind="currentTime">14:32:45 UTC</span>
+                    </div>
+                    <button class="bg-ms-blue text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+                        <i class="fas fa-cog mr-2"></i>Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!-- @END_COMPONENT: Header Navigation -->
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- @COMPONENT: Navigation Tabs -->
+        <div class="mb-8">
+            <nav class="flex space-x-8 border-b border-gray-200">
+                <button class="border-b-2 border-ms-blue text-ms-blue py-4 px-1 font-medium">
+                    <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+                </button>
+                <button class="border-b-2 border-transparent text-ms-gray-600 hover:text-ms-gray-700 hover:border-gray-300 py-4 px-1 font-medium">
+                    <i class="fas fa-server mr-2"></i>Model Management
+                </button>
+                <button class="border-b-2 border-transparent text-ms-gray-600 hover:text-ms-gray-700 hover:border-gray-300 py-4 px-1 font-medium">
+                    <i class="fas fa-chart-line mr-2"></i>Analytics
+                </button>
+                <button class="border-b-2 border-transparent text-ms-gray-600 hover:text-ms-gray-700 hover:border-gray-300 py-4 px-1 font-medium">
+                    <i class="fas fa-shield-alt mr-2"></i>Security
+                </button>
+            </nav>
+        </div>
+        <!-- @END_COMPONENT: Navigation Tabs -->
+
+        <!-- @COMPONENT: System Status Overview -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-xl shadow-sm p-6 metric-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-ms-gray-600 text-sm">Active Requests</p>
+                        <p class="text-2xl font-semibold text-ms-gray-700" data-bind="activeRequests">247</p>
+                    </div>
+                    <div class="bg-ms-blue bg-opacity-10 rounded-lg p-3">
+                        <i class="fas fa-paper-plane text-ms-blue text-xl"></i>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center text-sm">
+                    <span class="text-ms-green mr-1">↗</span>
+                    <span class="text-ms-green">12%</span>
+                    <span class="text-ms-gray-500 ml-1">vs last hour</span>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm p-6 metric-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-ms-gray-600 text-sm">Avg Response Time</p>
+                        <p class="text-2xl font-semibold text-ms-gray-700" data-bind="responseTime">1.2s</p>
+                    </div>
+                    <div class="bg-ms-green bg-opacity-10 rounded-lg p-3">
+                        <i class="fas fa-stopwatch text-ms-green text-xl"></i>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center text-sm">
+                    <span class="text-ms-green mr-1">↘</span>
+                    <span class="text-ms-green">8%</span>
+                    <span class="text-ms-gray-500 ml-1">improvement</span>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm p-6 metric-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-ms-gray-600 text-sm">Success Rate</p>
+                        <p class="text-2xl font-semibold text-ms-gray-700" data-bind="successRate">99.2%</p>
+                    </div>
+                    <div class="bg-ms-green bg-opacity-10 rounded-lg p-3">
+                        <i class="fas fa-check-circle text-ms-green text-xl"></i>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center text-sm">
+                    <span class="text-ms-green mr-1">↗</span>
+                    <span class="text-ms-green">0.3%</span>
+                    <span class="text-ms-gray-500 ml-1">improvement</span>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm p-6 metric-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-ms-gray-600 text-sm">Load Balance</p>
+                        <p class="text-2xl font-semibold text-ms-gray-700" data-bind="loadBalance">78%</p>
+                    </div>
+                    <div class="bg-ms-orange bg-opacity-10 rounded-lg p-3">
+                        <i class="fas fa-balance-scale text-ms-orange text-xl"></i>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center text-sm">
+                    <span class="text-ms-orange mr-1">⚠</span>
+                    <span class="text-ms-orange">High load</span>
+                    <span class="text-ms-gray-500 ml-1">monitoring</span>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: System Status Overview -->
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+            <!-- @COMPONENT: Main Routing Visualization -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-lg font-semibold text-ms-gray-700">
+                            <i class="fas fa-project-diagram mr-2 text-ms-blue"></i>
+                            Routing Architecture
+                        </h2>
+                        <div class="flex items-center space-x-2">
+                            <span class="bg-ms-green bg-opacity-10 text-ms-green px-2 py-1 rounded-full text-xs font-medium">
+                                Real-time
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- MoE Router Visualization -->
+                    <div class="relative h-96 bg-ms-gray-50 rounded-lg p-8">
+                        <!-- @FUNCTIONALITY: This should display real-time routing flows with animated connections -->
+                        
+                        <!-- Central MoE Router -->
+                        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                            <div class="bg-ms-blue text-white rounded-xl p-6 min-w-48 agent-pulse">
+                                <div class="text-center">
+                                    <i class="fas fa-brain text-2xl mb-2"></i>
+                                    <h3 class="font-semibold text-lg">MoE Router</h3>
+                                    <div class="mt-3 space-y-1">
+                                        <div class="flex justify-between text-sm">
+                                            <span>Queue:</span>
+                                            <span data-bind="routerQueue">23</span>
+                                        </div>
+                                        <div class="flex justify-between text-sm">
+                                            <span>CPU:</span>
+                                            <span data-bind="routerCpu">67%</span>
+                                        </div>
+                                        <div class="flex justify-between text-sm">
+                                            <span>Memory:</span>
+                                            <span data-bind="routerMemory">4.2GB</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Expert Agents -->
+                        <!-- Credit Check Agent -->
+                        <div class="absolute top-8 left-8">
+                            <div class="bg-white border-2 border-ms-green rounded-lg p-4 min-w-40 shadow-lg">
+                                <div class="text-center">
+                                    <i class="fas fa-credit-card text-ms-green text-xl mb-2"></i>
+                                    <h4 class="font-medium text-sm">Credit Check</h4>
+                                    <div class="mt-2 space-y-1 text-xs text-ms-gray-600">
+                                        <div>Queue: <span data-bind="creditQueue" class="font-mono">7</span></div>
+                                        <div>Accuracy: <span data-bind="creditAccuracy" class="font-mono">94.2%</span></div>
+                                        <div>Model: <span data-bind="creditModel" class="font-mono">TinyLlama</span></div>
+                                    </div>
+                                    <span class="inline-block mt-2 bg-ms-green bg-opacity-10 text-ms-green px-2 py-1 rounded-full text-xs">
+                                        Active
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Fraud Detection Agent -->
+                        <div class="absolute top-8 right-8">
+                            <div class="bg-white border-2 border-ms-red rounded-lg p-4 min-w-40 shadow-lg">
+                                <div class="text-center">
+                                    <i class="fas fa-shield-alt text-ms-red text-xl mb-2"></i>
+                                    <h4 class="font-medium text-sm">Fraud Detection</h4>
+                                    <div class="mt-2 space-y-1 text-xs text-ms-gray-600">
+                                        <div>Queue: <span data-bind="fraudQueue" class="font-mono">12</span></div>
+                                        <div>Accuracy: <span data-bind="fraudAccuracy" class="font-mono">98.7%</span></div>
+                                        <div>Model: <span data-bind="fraudModel" class="font-mono">Phi-3 Mini</span></div>
+                                    </div>
+                                    <span class="inline-block mt-2 bg-ms-red bg-opacity-10 text-ms-red px-2 py-1 rounded-full text-xs">
+                                        High Load
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ESG Agent -->
+                        <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2">
+                            <div class="bg-white border-2 border-ms-purple rounded-lg p-4 min-w-40 shadow-lg">
+                                <div class="text-center">
+                                    <i class="fas fa-leaf text-ms-purple text-xl mb-2"></i>
+                                    <h4 class="font-medium text-sm">ESG Analysis</h4>
+                                    <div class="mt-2 space-y-1 text-xs text-ms-gray-600">
+                                        <div>Queue: <span data-bind="esgQueue" class="font-mono">4</span></div>
+                                        <div>Accuracy: <span data-bind="esgAccuracy" class="font-mono">91.8%</span></div>
+                                        <div>Model: <span data-bind="esgModel" class="font-mono">Mistral 7B</span></div>
+                                    </div>
+                                    <span class="inline-block mt-2 bg-ms-purple bg-opacity-10 text-ms-purple px-2 py-1 rounded-full text-xs">
+                                        Active
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Dynamic Scaling Indicator -->
+                        <div class="absolute bottom-8 right-8">
+                            <div class="bg-ms-orange bg-opacity-10 border-2 border-dashed border-ms-orange rounded-lg p-4 min-w-40">
+                                <div class="text-center">
+                                    <i class="fas fa-plus-circle text-ms-orange text-xl mb-2 animate-pulse"></i>
+                                    <h4 class="font-medium text-sm text-ms-orange">Auto-Scale</h4>
+                                    <div class="mt-2 text-xs text-ms-gray-600">
+                                        Ready to spawn<br/>new instances
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Routing Lines (Animated) -->
+                        <div class="routing-line top-20 left-40 w-32 rotate-45"></div>
+                        <div class="routing-line top-20 right-40 w-32 -rotate-45"></div>
+                        <div class="routing-line bottom-20 left-1/2 w-24 rotate-90"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- @END_COMPONENT: Main Routing Visualization -->
+
+            <!-- @COMPONENT: Real-time Activity Feed -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-lg font-semibold text-ms-gray-700">
+                            <i class="fas fa-stream mr-2 text-ms-green"></i>
+                            Live Activity
+                        </h2>
+                        <span class="bg-ms-green bg-opacity-10 text-ms-green px-2 py-1 rounded-full text-xs font-medium animate-pulse">
+                            ● Live
+                        </span>
+                    </div>
+
+                    <div class="space-y-4 max-h-80 overflow-y-auto" data-mock="true">
+                        <!-- @MAP: activities.map(activity => ( -->
+                        <div class="flex items-start space-x-3 p-3 bg-ms-gray-50 rounded-lg">
+                            <div class="bg-ms-blue text-white rounded-full p-1 text-xs mt-1">
+                                <i class="fas fa-arrow-right"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-ms-gray-700">Loan Application Routed</p>
+                                <p class="text-xs text-ms-gray-600 mt-1">Credit Check Agent → Processing application #LA-2024-0847</p>
+                                <p class="text-xs text-ms-gray-500 mt-1">2 seconds ago</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start space-x-3 p-3 bg-ms-gray-50 rounded-lg">
+                            <div class="bg-ms-red text-white rounded-full p-1 text-xs mt-1">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-ms-gray-700">Fraud Alert Triggered</p>
+                                <p class="text-xs text-ms-gray-600 mt-1">Fraud Agent → Suspicious pattern detected</p>
+                                <p class="text-xs text-ms-gray-500 mt-1">8 seconds ago</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start space-x-3 p-3 bg-ms-gray-50 rounded-lg">
+                            <div class="bg-ms-green text-white rounded-full p-1 text-xs mt-1">
+                                <i class="fas fa-check"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-ms-gray-700">ESG Compliance Check</p>
+                                <p class="text-xs text-ms-gray-600 mt-1">ESG Agent → Environmental score validated</p>
+                                <p class="text-xs text-ms-gray-500 mt-1">15 seconds ago</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start space-x-3 p-3 bg-ms-gray-50 rounded-lg">
+                            <div class="bg-ms-purple text-white rounded-full p-1 text-xs mt-1">
+                                <i class="fas fa-sync-alt"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-ms-gray-700">Load Balancing</p>
+                                <p class="text-xs text-ms-gray-600 mt-1">Router → Redistributing 23 requests across agents</p>
+                                <p class="text-xs text-ms-gray-500 mt-1">32 seconds ago</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start space-x-3 p-3 bg-ms-gray-50 rounded-lg">
+                            <div class="bg-ms-orange text-white rounded-full p-1 text-xs mt-1">
+                                <i class="fas fa-plus"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-ms-gray-700">Auto-Scaling Triggered</p>
+                                <p class="text-xs text-ms-gray-600 mt-1">System → New Fraud Detection instance spawned</p>
+                                <p class="text-xs text-ms-gray-500 mt-1">1 minute ago</p>
+                            </div>
+                        </div>
+                        <!-- @END_MAP )) -->
+                    </div>
+                </div>
+            </div>
+            <!-- @END_COMPONENT: Real-time Activity Feed -->
+        </div>
+
+        <!-- @COMPONENT: Model Management Dashboard -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <div class="bg-white rounded-xl shadow-sm p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-lg font-semibold text-ms-gray-700">
+                        <i class="fas fa-microchip mr-2 text-ms-purple"></i>
+                        Lightweight LLM Models
+                    </h2>
+                    <button class="bg-ms-purple text-white px-3 py-2 rounded-lg text-sm hover:bg-purple-700 transition-colors">
+                        <i class="fas fa-plus mr-1"></i>Deploy Model
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- @MAP: models.map(model => ( -->
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center space-x-3">
+                                <i class="fas fa-cube text-ms-blue"></i>
+                                <div>
+                                    <h3 class="font-medium text-ms-gray-700" data-bind="model.name">TinyLlama 1.1B</h3>
+                                    <p class="text-sm text-ms-gray-600" data-bind="model.type">Classification & Basic Q&A</p>
+                                </div>
+                            </div>
+                            <span class="bg-ms-green bg-opacity-10 text-ms-green px-2 py-1 rounded-full text-xs font-medium">
+                                Active
+                            </span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-4 text-sm">
+                            <div>
+                                <span class="text-ms-gray-600">Memory:</span>
+                                <span class="font-mono ml-1" data-bind="model.memory">2.3GB</span>
+                            </div>
+                            <div>
+                                <span class="text-ms-gray-600">Size:</span>
+                                <span class="font-mono ml-1" data-bind="model.size">1.5GB</span>
+                            </div>
+                            <div>
+                                <span class="text-ms-gray-600">Latency:</span>
+                                <span class="font-mono ml-1" data-bind="model.latency">140ms</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center space-x-3">
+                                <i class="fas fa-cube text-ms-blue"></i>
+                                <div>
+                                    <h3 class="font-medium text-ms-gray-700" data-bind="model.name">Phi-3 Mini 3.8B</h3>
+                                    <p class="text-sm text-ms-gray-600" data-bind="model.type">Logic Reasoning & Analysis</p>
+                                </div>
+                            </div>
+                            <span class="bg-ms-green bg-opacity-10 text-ms-green px-2 py-1 rounded-full text-xs font-medium">
+                                Active
+                            </span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-4 text-sm">
+                            <div>
+                                <span class="text-ms-gray-600">Memory:</span>
+                                <span class="font-mono ml-1" data-bind="model.memory">7.5GB</span>
+                            </div>
+                            <div>
+                                <span class="text-ms-gray-600">Size:</span>
+                                <span class="font-mono ml-1" data-bind="model.size">4.1GB</span>
+                            </div>
+                            <div>
+                                <span class="text-ms-gray-600">Latency:</span>
+                                <span class="font-mono ml-1" data-bind="model.latency">280ms</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center space-x-3">
+                                <i class="fas fa-cube text-ms-blue"></i>
+                                <div>
+                                    <h3 class="font-medium text-ms-gray-700" data-bind="model.name">Mistral 7B</h3>
+                                    <p class="text-sm text-ms-gray-600" data-bind="model.type">Document Summarization & Compliance</p>
+                                </div>
+                            </div>
+                            <span class="bg-ms-green bg-opacity-10 text-ms-green px-2 py-1 rounded-full text-xs font-medium">
+                                Active
+                            </span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-4 text-sm">
+                            <div>
+                                <span class="text-ms-gray-600">Memory:</span>
+                                <span class="font-mono ml-1" data-bind="model.memory">6.9GB</span>
+                            </div>
+                            <div>
+                                <span class="text-ms-gray-600">Size:</span>
+                                <span class="font-mono ml-1" data-bind="model.size">4.4GB</span>
+                            </div>
+                            <div>
+                                <span class="text-ms-gray-600">Latency:</span>
+                                <span class="font-mono ml-1" data-bind="model.latency">420ms</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- @END_MAP )) -->
+                </div>
+            </div>
+
+            <!-- @COMPONENT: Performance Monitoring -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-lg font-semibold text-ms-gray-700">
+                        <i class="fas fa-chart-bar mr-2 text-ms-green"></i>
+                        Performance Metrics
+                    </h2>
+                    <select class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                        <option>Last 1 Hour</option>
+                        <option>Last 24 Hours</option>
+                        <option>Last 7 Days</option>
+                    </select>
+                </div>
+
+                <div class="space-y-6">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-ms-gray-700">Request Throughput</span>
+                            <span class="text-sm font-mono text-ms-gray-600" data-bind="throughput">247 req/min</span>
+                        </div>
+                        <div class="w-full bg-ms-gray-100 rounded-full h-2">
+                            <div class="bg-ms-blue h-2 rounded-full" style="width: 78%"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-ms-gray-700">CPU Utilization</span>
+                            <span class="text-sm font-mono text-ms-gray-600" data-bind="cpuUsage">67%</span>
+                        </div>
+                        <div class="w-full bg-ms-gray-100 rounded-full h-2">
+                            <div class="bg-ms-orange h-2 rounded-full" style="width: 67%"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-ms-gray-700">Memory Usage</span>
+                            <span class="text-sm font-mono text-ms-gray-600" data-bind="memoryUsage">18.7GB / 32GB</span>
+                        </div>
+                        <div class="w-full bg-ms-gray-100 rounded-full h-2">
+                            <div class="bg-ms-green h-2 rounded-full" style="width: 58%"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-ms-gray-700">Model Accuracy</span>
+                            <span class="text-sm font-mono text-ms-gray-600" data-bind="modelAccuracy">94.8%</span>
+                        </div>
+                        <div class="w-full bg-ms-gray-100 rounded-full h-2">
+                            <div class="bg-ms-green h-2 rounded-full" style="width: 95%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 pt-6 border-t border-gray-200">
+                    <h3 class="text-sm font-medium text-ms-gray-700 mb-4">Deployment Status</h3>
+                    <div class="grid grid-cols-1 gap-3">
+                        <div class="flex items-center justify-between p-3 bg-ms-gray-50 rounded-lg">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-2 h-2 bg-ms-green rounded-full"></div>
+                                <span class="text-sm">Ollama Server</span>
+                            </div>
+                            <span class="text-sm font-mono text-ms-gray-600">:11434</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-ms-gray-50 rounded-lg">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-2 h-2 bg-ms-green rounded-full"></div>
+                                <span class="text-sm">LM Studio API</span>
+                            </div>
+                            <span class="text-sm font-mono text-ms-gray-600">:1234</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-ms-gray-50 rounded-lg">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-2 h-2 bg-ms-blue rounded-full animate-pulse"></div>
+                                <span class="text-sm">Load Balancer</span>
+                            </div>
+                            <span class="text-sm font-mono text-ms-gray-600">Active</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- @END_COMPONENT: Performance Monitoring -->
+        </div>
+
+        <!-- @COMPONENT: Request Processing Dialog -->
+        <div class="fixed bottom-6 right-6 w-96 max-w-full z-40">
+            <div class="bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
+                <div class="bg-ms-blue text-white p-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-cogs animate-spin"></i>
+                            <h3 class="font-medium">Processing Request #LA-2024-0847</h3>
+                        </div>
+                        <button class="text-white hover:text-gray-200">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="p-4 max-h-80 overflow-y-auto" data-mock="true">
+                    <div class="space-y-3 text-sm">
+                        <div class="flex items-start space-x-2">
+                            <div class="w-2 h-2 bg-ms-green rounded-full mt-2"></div>
+                            <div>
+                                <p class="font-medium text-ms-gray-700">Request Received</p>
+                                <p class="text-ms-gray-600">Loan application for $250,000 - Business loan</p>
+                                <p class="text-xs text-ms-gray-500">14:32:41</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start space-x-2">
+                            <div class="w-2 h-2 bg-ms-blue rounded-full mt-2 animate-pulse"></div>
+                            <div>
+                                <p class="font-medium text-ms-gray-700">Routing Analysis</p>
+                                <p class="text-ms-gray-600">Analyzing request context and determining optimal routing...</p>
+                                <p class="text-xs text-ms-gray-500">14:32:42</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start space-x-2">
+                            <div class="w-2 h-2 bg-ms-green rounded-full mt-2"></div>
+                            <div>
+                                <p class="font-medium text-ms-gray-700">Credit Check Agent</p>
+                                <p class="text-ms-gray-600">TinyLlama processing credit score verification - Score: 742</p>
+                                <p class="text-xs text-ms-gray-500">14:32:43</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start space-x-2">
+                            <div class="w-2 h-2 bg-ms-red rounded-full mt-2"></div>
+                            <div>
+                                <p class="font-medium text-ms-gray-700">Fraud Detection Agent</p>
+                                <p class="text-ms-gray-600">Phi-3 Mini analyzing transaction patterns - Risk: Low</p>
+                                <p class="text-xs text-ms-gray-500">14:32:44</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start space-x-2">
+                            <div class="w-2 h-2 bg-ms-blue rounded-full mt-2 animate-pulse"></div>
+                            <div>
+                                <p class="font-medium text-ms-gray-700">ESG Analysis Agent</p>
+                                <p class="text-ms-gray-600">Mistral 7B evaluating environmental compliance...</p>
+                                <p class="text-xs text-ms-gray-500">14:32:45</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-ms-gray-50 px-4 py-3">
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="text-ms-gray-600">Processing time: 4.2s</span>
+                        <span class="text-ms-gray-600">Confidence: 96.7%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: Request Processing Dialog -->
+    </div>
+
+    <script>
+        (function() {
+            // TODO: Implement real-time data updates via WebSocket or polling
+            // TODO: Add interactive routing visualization controls
+            // TODO: Implement model deployment and management functionality
+            // TODO: Add authentication and authorization
+            // TODO: Integrate with actual MoE routing agent backend
+
+            // Simulated real-time updates for demo purposes
+            function updateMetrics() {
+                const elements = {
+                    activeRequests: document.querySelector('[data-bind="activeRequests"]'),
+                    responseTime: document.querySelector('[data-bind="responseTime"]'),
+                    successRate: document.querySelector('[data-bind="successRate"]'),
+                    loadBalance: document.querySelector('[data-bind="loadBalance"]'),
+                    currentTime: document.querySelector('[data-bind="currentTime"]')
+                };
+
+                if (elements.currentTime) {
+                    elements.currentTime.textContent = new Date().toLocaleTimeString() + ' UTC';
+                }
+
+                // Simulate minor fluctuations in metrics
+                if (elements.activeRequests) {
+                    const baseValue = 247;
+                    const variation = Math.floor(Math.random() * 20) - 10;
+                    elements.activeRequests.textContent = (baseValue + variation).toString();
+                }
+
+                if (elements.responseTime) {
+                    const baseValue = 1.2;
+                    const variation = (Math.random() * 0.4) - 0.2;
+                    elements.responseTime.textContent = (baseValue + variation).toFixed(1) + 's';
+                }
+            }
+
+            // Update metrics every 5 seconds
+            setInterval(updateMetrics, 5000);
+            updateMetrics(); // Initial update
+
+            // Simulate routing line animations
+            function animateRoutingLines() {
+                const routingLines = document.querySelectorAll('.routing-line');
+                routingLines.forEach(line => {
+                    line.style.animationDelay = Math.random() * 2 + 's';
+                });
+            }
+
+            animateRoutingLines();
+
+            // Tab navigation functionality
+            const tabButtons = document.querySelectorAll('nav button');
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    tabButtons.forEach(btn => {
+                        btn.className = btn.className.replace('border-ms-blue text-ms-blue', 'border-transparent text-ms-gray-600 hover:text-ms-gray-700 hover:border-gray-300');
+                    });
+                    this.className = this.className.replace('border-transparent text-ms-gray-600 hover:text-ms-gray-700 hover:border-gray-300', 'border-ms-blue text-ms-blue');
+                });
+            });
+
+            // Dialog close functionality
+            const dialogCloseBtn = document.querySelector('.fixed .fa-times');
+            if (dialogCloseBtn) {
+                dialogCloseBtn.closest('button').addEventListener('click', function() {
+                    this.closest('.fixed').style.display = 'none';
+                });
+            }
+        })();
+    </script>
+</body>
+</html>

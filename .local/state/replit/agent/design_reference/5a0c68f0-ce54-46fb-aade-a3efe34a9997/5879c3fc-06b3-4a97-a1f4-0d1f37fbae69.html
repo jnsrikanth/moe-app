@@ -1,0 +1,464 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoE Agent Router - BFSI Routing Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#1e3a8a',
+                        'secondary': '#64748b',
+                        'success': '#16a34a',
+                        'processing': '#16a34a',
+                        'idle': '#64748b'
+                    },
+                    fontFamily: {
+                        'inter': ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        .agent-box {
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .agent-box.idle {
+            background-color: #64748b;
+            border-color: #64748b;
+        }
+        
+        .agent-box.processing {
+            background-color: #16a34a;
+            border-color: #16a34a;
+            box-shadow: 0 0 20px rgba(22, 163, 74, 0.3);
+        }
+        
+        .dialog-box {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-bottom: 10px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 10;
+        }
+        
+        .agent-box.processing .dialog-box {
+            opacity: 1;
+        }
+        
+        .routing-line {
+            stroke-dasharray: 5,5;
+            animation: dash 2s linear infinite;
+        }
+        
+        .routing-line.active {
+            stroke: #16a34a;
+            stroke-width: 3;
+        }
+        
+        @keyframes dash {
+            to { stroke-dashoffset: -10; }
+        }
+        
+        .pulse-dot {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.7; }
+        }
+        
+        .status-indicator {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+        
+        .status-indicator.idle {
+            background-color: #64748b;
+        }
+        
+        .status-indicator.processing {
+            background-color: #16a34a;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 font-inter">
+    <!-- @COMPONENT: Header [navigation and branding] -->
+    <header class="bg-white border-b border-slate-200 px-6 py-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <i class="fas fa-route text-primary text-2xl"></i>
+                <div>
+                    <h1 class="text-xl font-semibold text-slate-900">MoE Agent Router</h1>
+                    <p class="text-sm text-slate-600">Banking & Financial Services Intelligent Routing</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 bg-success rounded-full pulse-dot"></div>
+                    <span class="text-sm text-slate-600">System Online</span>
+                </div>
+                <button class="bg-primary text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-800 transition-colors">
+                    <i class="fas fa-cog mr-2"></i>Settings
+                </button>
+            </div>
+        </div>
+    </header>
+    <!-- @END_COMPONENT: Header -->
+
+    <div class="flex h-screen">
+        <!-- @COMPONENT: Sidebar [application controls and status] -->
+        <div class="w-80 bg-white border-r border-slate-200 p-6 overflow-y-auto">
+            <!-- @STATE: currentRequest:object = null -->
+            <div class="space-y-6">
+                <div class="bg-slate-50 rounded-lg p-4">
+                    <h3 class="font-semibold text-slate-900 mb-3">Current Request</h3>
+                    <div id="currentRequestInfo">
+                        <div class="text-sm text-slate-600 space-y-2">
+                            <div class="flex justify-between">
+                                <span>Request ID:</span>
+                                <span class="font-mono" data-bind="request.id">LN-2024-0847</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Type:</span>
+                                <span data-bind="request.type">Loan Application</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Amount:</span>
+                                <span data-bind="request.amount">$250,000</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Status:</span>
+                                <span id="requestStatus" class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">Processing</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 rounded-lg p-4">
+                    <h3 class="font-semibold text-slate-900 mb-3">Processing Queue</h3>
+                    <div class="space-y-2">
+                        <!-- @MAP: processingQueue.map(item => ( -->
+                        <div class="flex items-center space-x-2 text-sm">
+                            <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <span data-bind="item.description">Credit Score Verification</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-sm">
+                            <div class="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                            <span data-bind="item.description">Fraud Risk Assessment</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-sm">
+                            <div class="w-2 h-2 bg-purple-500 rounded-full"></div>
+                            <span data-bind="item.description">ESG Compliance Check</span>
+                        </div>
+                        <!-- @END_MAP )) -->
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 rounded-lg p-4">
+                    <h3 class="font-semibold text-slate-900 mb-3">System Metrics</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-slate-600">Active Agents</span>
+                            <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">4/4</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-slate-600">Avg Response Time</span>
+                            <span class="text-sm font-medium" data-bind="metrics.avgResponseTime">1.2s</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-slate-600">Success Rate</span>
+                            <span class="text-sm font-medium text-green-600" data-bind="metrics.successRate">98.7%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="simulateRequest" class="w-full bg-primary text-white py-3 rounded-lg hover:bg-blue-800 transition-colors">
+                    <i class="fas fa-play mr-2"></i>Simulate New Request
+                </button>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: Sidebar -->
+
+        <!-- @COMPONENT: MainDashboard [diagrammatic routing visualization] -->
+        <div class="flex-1 p-8 bg-slate-50">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 h-full p-8">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-semibold text-slate-900">Real-Time Routing Visualization</h2>
+                    <p class="text-slate-600">Monitor MoE agent routing decisions and expert agent processing</p>
+                </div>
+
+                <!-- @FUNCTIONALITY: This diagram shows real-time routing between MoE router and expert agents -->
+                <div class="relative h-full max-h-[600px]">
+                    <!-- SVG for routing lines -->
+                    <svg class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 1;">
+                        <!-- Connection lines between components -->
+                        <line id="inputToRouter" x1="15%" y1="50%" x2="35%" y2="50%" class="routing-line" stroke="#cbd5e1" stroke-width="2" fill="none"/>
+                        <line id="routerToCredit" x1="55%" y1="45%" x2="75%" y2="25%" class="routing-line" stroke="#cbd5e1" stroke-width="2" fill="none"/>
+                        <line id="routerToFraud" x1="55%" y1="50%" x2="75%" y2="50%" class="routing-line" stroke="#cbd5e1" stroke-width="2" fill="none"/>
+                        <line id="routerToESG" x1="55%" y1="55%" x2="75%" y2="75%" class="routing-line" stroke="#cbd5e1" stroke-width="2" fill="none"/>
+                    </svg>
+
+                    <!-- Input Request (Left Side) -->
+                    <div class="absolute top-1/2 left-[10%] transform -translate-y-1/2" style="z-index: 2;">
+                        <div class="agent-box idle w-24 h-24 rounded-lg flex items-center justify-center text-white font-semibold relative">
+                            <div class="status-indicator idle"></div>
+                            <i class="fas fa-file-alt text-2xl"></i>
+                            <div class="dialog-box bg-slate-800 text-white p-2 rounded text-xs max-w-48">
+                                <div data-mock="true">New loan application received</div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-2 text-sm text-slate-700 font-medium">Input Request</div>
+                    </div>
+
+                    <!-- MoE Router (Center) -->
+                    <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" style="z-index: 2;">
+                        <div id="moeRouter" class="agent-box idle w-32 h-32 rounded-lg flex items-center justify-center text-white font-semibold relative">
+                            <div class="status-indicator idle"></div>
+                            <i class="fas fa-route text-3xl"></i>
+                            <div class="dialog-box bg-slate-800 text-white p-3 rounded text-xs max-w-64">
+                                <div id="routerDialog" data-mock="true">Analyzing request parameters...</div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-2 text-sm text-slate-700 font-medium">MoE Router</div>
+                    </div>
+
+                    <!-- Expert Agents (Right Side) -->
+                    <!-- Credit Check Agent -->
+                    <div class="absolute top-[20%] right-[20%]" style="z-index: 2;">
+                        <div id="creditAgent" class="agent-box idle w-28 h-28 rounded-lg flex items-center justify-center text-white font-semibold relative">
+                            <div class="status-indicator idle"></div>
+                            <i class="fas fa-chart-line text-2xl"></i>
+                            <div class="dialog-box bg-slate-800 text-white p-2 rounded text-xs max-w-48">
+                                <div id="creditDialog" data-mock="true">Credit score: 742. Good standing.</div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-2 text-sm text-slate-700 font-medium">Credit Check</div>
+                    </div>
+
+                    <!-- Fraud Detection Agent -->
+                    <div class="absolute top-1/2 right-[20%] transform -translate-y-1/2" style="z-index: 2;">
+                        <div id="fraudAgent" class="agent-box idle w-28 h-28 rounded-lg flex items-center justify-center text-white font-semibold relative">
+                            <div class="status-indicator idle"></div>
+                            <i class="fas fa-shield-alt text-2xl"></i>
+                            <div class="dialog-box bg-slate-800 text-white p-2 rounded text-xs max-w-48">
+                                <div id="fraudDialog" data-mock="true">No fraud indicators detected.</div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-2 text-sm text-slate-700 font-medium">Fraud Detection</div>
+                    </div>
+
+                    <!-- ESG Agent -->
+                    <div class="absolute bottom-[20%] right-[20%]" style="z-index: 2;">
+                        <div id="esgAgent" class="agent-box idle w-28 h-28 rounded-lg flex items-center justify-center text-white font-semibold relative">
+                            <div class="status-indicator idle"></div>
+                            <i class="fas fa-leaf text-2xl"></i>
+                            <div class="dialog-box bg-slate-800 text-white p-2 rounded text-xs max-w-48">
+                                <div id="esgDialog" data-mock="true">ESG compliance verified.</div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-2 text-sm text-slate-700 font-medium">ESG Agent</div>
+                    </div>
+
+                    <!-- Final Decision Display -->
+                    <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2">
+                        <div id="finalDecision" class="bg-slate-100 border-2 border-dashed border-slate-300 rounded-lg p-4 text-center">
+                            <div class="text-lg font-semibold text-slate-600" id="decisionText">Awaiting Processing...</div>
+                            <div class="text-sm text-slate-500 mt-1" id="decisionReason">All expert agents will be consulted</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: MainDashboard -->
+    </div>
+
+    <!-- @COMPONENT: ActivityLog [real-time processing log] -->
+    <div class="fixed bottom-4 right-4 w-96 bg-white rounded-lg shadow-lg border border-slate-200 max-h-64 overflow-hidden">
+        <div class="p-4 border-b border-slate-200">
+            <h3 class="font-semibold text-slate-900 flex items-center">
+                <i class="fas fa-list mr-2"></i>Activity Log
+            </h3>
+        </div>
+        <div id="activityLog" class="p-4 space-y-2 text-sm max-h-48 overflow-y-auto">
+            <div class="text-slate-600" data-mock="true">
+                <span class="text-slate-400">12:34:56</span> - System initialized
+            </div>
+            <div class="text-slate-600" data-mock="true">
+                <span class="text-slate-400">12:35:12</span> - MoE Router ready for requests
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: ActivityLog -->
+
+    <script>
+        // TODO: Implement WebSocket connection for real-time updates
+        // TODO: Connect to actual MoE routing backend
+        
+        (function() {
+            let isProcessing = false;
+            let currentStep = 0;
+            
+            const steps = [
+                {
+                    element: 'moeRouter',
+                    dialog: 'Analyzing request: Loan Application $250,000',
+                    duration: 2000
+                },
+                {
+                    element: 'creditAgent',
+                    line: 'routerToCredit',
+                    dialog: 'Running credit score analysis...',
+                    duration: 3000
+                },
+                {
+                    element: 'fraudAgent',
+                    line: 'routerToFraud', 
+                    dialog: 'Performing fraud risk assessment...',
+                    duration: 2500
+                },
+                {
+                    element: 'esgAgent',
+                    line: 'routerToESG',
+                    dialog: 'Checking ESG compliance criteria...',
+                    duration: 2000
+                },
+                {
+                    element: 'moeRouter',
+                    dialog: 'Consolidating expert agent results...',
+                    duration: 1500
+                }
+            ];
+
+            function addToLog(message) {
+                const log = document.getElementById('activityLog');
+                const timestamp = new Date().toLocaleTimeString();
+                const entry = document.createElement('div');
+                entry.className = 'text-slate-600';
+                entry.innerHTML = `<span class="text-slate-400">${timestamp}</span> - ${message}`;
+                log.appendChild(entry);
+                log.scrollTop = log.scrollHeight;
+            }
+
+            function activateAgent(elementId, dialogText, lineId = null) {
+                const element = document.getElementById(elementId);
+                const dialog = element.querySelector('.dialog-box div');
+                const statusIndicator = element.querySelector('.status-indicator');
+                
+                // Activate visual state
+                element.classList.remove('idle');
+                element.classList.add('processing');
+                statusIndicator.classList.remove('idle');
+                statusIndicator.classList.add('processing');
+                
+                // Update dialog
+                dialog.textContent = dialogText;
+                
+                // Activate routing line if specified
+                if (lineId) {
+                    const line = document.getElementById(lineId);
+                    line.classList.add('active');
+                }
+                
+                addToLog(`${elementId.replace('Agent', '').replace('moeRouter', 'MoE Router')} activated: ${dialogText}`);
+            }
+
+            function deactivateAgent(elementId, lineId = null) {
+                const element = document.getElementById(elementId);
+                const statusIndicator = element.querySelector('.status-indicator');
+                
+                element.classList.remove('processing');
+                element.classList.add('idle');
+                statusIndicator.classList.remove('processing');
+                statusIndicator.classList.add('idle');
+                
+                if (lineId) {
+                    const line = document.getElementById(lineId);
+                    line.classList.remove('active');
+                }
+            }
+
+            function simulateProcessing() {
+                if (isProcessing) return;
+                
+                isProcessing = true;
+                currentStep = 0;
+                
+                document.getElementById('requestStatus').textContent = 'Processing';
+                document.getElementById('requestStatus').className = 'bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs';
+                
+                addToLog('New loan application processing started');
+
+                function processNextStep() {
+                    if (currentStep < steps.length) {
+                        const step = steps[currentStep];
+                        activateAgent(step.element, step.dialog, step.line);
+                        
+                        setTimeout(() => {
+                            deactivateAgent(step.element, step.line);
+                            currentStep++;
+                            processNextStep();
+                        }, step.duration);
+                    } else {
+                        // Final decision
+                        const decision = Math.random() > 0.3 ? 'APPROVED' : 'REJECTED';
+                        const decisionElement = document.getElementById('finalDecision');
+                        const decisionText = document.getElementById('decisionText');
+                        const decisionReason = document.getElementById('decisionReason');
+                        
+                        decisionText.textContent = `Application ${decision}`;
+                        decisionReason.textContent = decision === 'APPROVED' ? 
+                            'All criteria met, low risk profile' : 
+                            'Risk factors identified, requires review';
+                            
+                        decisionElement.className = decision === 'APPROVED' ? 
+                            'bg-green-50 border-2 border-green-300 rounded-lg p-4 text-center' :
+                            'bg-red-50 border-2 border-red-300 rounded-lg p-4 text-center';
+                            
+                        decisionText.className = decision === 'APPROVED' ? 
+                            'text-lg font-semibold text-green-700' :
+                            'text-lg font-semibold text-red-700';
+
+                        document.getElementById('requestStatus').textContent = decision;
+                        document.getElementById('requestStatus').className = decision === 'APPROVED' ?
+                            'bg-green-100 text-green-800 px-2 py-1 rounded text-xs' :
+                            'bg-red-100 text-red-800 px-2 py-1 rounded text-xs';
+                        
+                        addToLog(`Final decision: Application ${decision}`);
+                        
+                        isProcessing = false;
+                    }
+                }
+                
+                processNextStep();
+            }
+
+            document.getElementById('simulateRequest').addEventListener('click', simulateProcessing);
+            
+            // Auto-start simulation after page load
+            setTimeout(() => {
+                simulateProcessing();
+            }, 2000);
+            
+        })();
+    </script>
+</body>
+</html>
