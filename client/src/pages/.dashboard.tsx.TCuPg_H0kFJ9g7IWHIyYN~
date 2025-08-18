@@ -1,0 +1,195 @@
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useWebSocket } from "@/hooks/useWebSocket";
+import { DisclaimerBanner } from "@/components/DisclaimerBanner";
+import { IncomingRequest } from "@/components/IncomingRequest";
+import { MoERouter } from "@/components/MoERouter";
+import { ExpertAgents } from "@/components/ExpertAgents";
+import { SystemOverview } from "@/components/SystemOverview";
+import { DetailedLogs } from "@/components/DetailedLogs";
+import { ExpertAgent, Request, RouterMetrics, SystemLog, SystemMetrics } from "@/types/moe";
+import { Activity } from "lucide-react";
+
+export default function Dashboard() {
+  const [expertAgents, setExpertAgents] = useState<ExpertAgent[]>([]);
+  const [requests, setRequests] = useState<Request[]>([]);
+  const [routerMetrics, setRouterMetrics] = useState<RouterMetrics | null>(null);
+  const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
+  const [systemMetrics, setSystemMetrics] = useState<SystemMetrics | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+
+  const { isConnected: wsConnected, subscribe } = useWebSocket();
+
+  // Fetch initial data
+  const { data: initialAgents } = useQuery({
+    queryKey: ['/api/expert-agents'],
+    staleTime: 30000,
+  });
+
+  const { data: initialRouterMetrics } = useQuery({
+    queryKey: ['/api/router-metrics'],
+    staleTime: 30000,
+  });
+
+  const { data: initialSystemMetrics } = useQuery({
+    queryKey: ['/api/system-metrics'],
+    staleTime: 30000,
+  });
+
+  const { data: initialLogs } = useQuery({
+    queryKey: ['/api/system-logs'],
+    staleTime: 30000,
+  });
+
+  const { data: initialRequests } = useQuery({
+    queryKey: ['/api/requests'],
+    staleTime: 30000,
+  });
+
+  // Initialize state with fetched data
+  useEffect(() => {
+    if (initialAgents) setExpertAgents(initialAgents);
+    if (initialRouterMetrics) setRouterMetrics(initialRouterMetrics);
+    if (initialSystemMetrics) setSystemMetrics(initialSystemMetrics);
+    if (initialLogs) setSystemLogs(initialLogs);
+    if (initialRequests) setRequests(initialRequests);
+  }, [initialAgents, initialRouterMetrics, initialSystemMetrics, initialLogs, initialRequests]);
+
+  // WebSocket event subscriptions
+  useEffect(() => {
+    const unsubscribers = [
+      subscribe('initial_data', (data) => {
+        setExpertAgents(data.expertAgents || []);
+        setRouterMetrics(data.routerMetrics);
+        setSystemMetrics(data.systemMetrics);
+        setSystemLogs(data.systemLogs || []);
+        setRequests(data.requests || []);
+        setIsConnected(true);
+      }),
+
+      subscribe('agent_updated', (agent: ExpertAgent) => {
+        setExpertAgents(prev => prev.map(a => a.id === agent.id ? agent : a));
+      }),
+
+      subscribe('new_request', (request: Request) => {
+        setRequests(prev => [request, ...prev].slice(0, 20));
+      }),
+
+      subscribe('request_updated', (updatedRequest: Request) => {
+        setRequests(prev => prev.map(r => r.id === updatedRequest.id ? updatedRequest : r));
+      }),
+
+      subscribe('router_metrics_updated', (metrics: RouterMetrics) => {
+        setRouterMetrics(metrics);
+      }),
+
+      subscribe('new_log', (log: SystemLog) => {
+        setSystemLogs(prev => [...prev, log].slice(-50));
+      }),
+    ];
+
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
+    };
+  }, [subscribe]);
+
+  const currentRequest = requests.find(req => req.status === 'processing') || null;
+  const alerts = [
+    {
+      id: '1',
+      type: 'warning' as const,
+      title: 'High Load Detected',
+      message: 'Credit Agent scaling up - 3rd instance spawning',
+    },
+    {
+      id: '2',
+      type: 'success' as const,
+      title: 'Auto-scaling Success',
+      message: 'Load balanced across 2 instances',
+    },
+  ];
+
+  if (!routerMetrics || !systemMetrics) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <Activity className="mx-auto mb-4 animate-spin" size={48} />
+          <h2 className="text-xl font-semibold mb-2">Initializing MoE System</h2>
+          <p className="text-gray-400">Loading dashboard components...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white">
+      <DisclaimerBanner />
+      
+      <div className="p-6">
+        {/* Header */}
+        <header className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-blue-400 mb-2">MoE Routing Agent Dashboard</h1>
+              <p className="text-gray-300">BFSI Mixture of Experts - Real-time Agent Monitoring & Analytics</p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="bg-gray-800 px-4 py-2 rounded-lg">
+                <div className="text-xs text-gray-400">Connection Status</div>
+                <div className="flex items-center">
+                  <div className={`w-2 h-2 rounded-full mr-2 ${
+                    wsConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+                  }`}></div>
+                  <span className={`font-medium ${
+                    wsConnected ? 'text-green-500' : 'text-red-500'
+                  }`}>
+                    {wsConnected ? 'CONNECTED' : 'DISCONNECTED'}
+                  </span>
+                </div>
+              </div>
+              <div className="bg-gray-800 px-4 py-2 rounded-lg">
+                <div className="text-xs text-gray-400">Active Requests</div>
+                <div className="text-xl font-bold text-white">{routerMetrics.activeRequests}</div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Schematic */}
+        <div className="grid grid-cols-12 gap-6 mb-8">
+          {/* Incoming Request - LEFT */}
+          <div className="col-span-3">
+            <IncomingRequest
+              requests={requests}
+              currentRequest={currentRequest}
+              requestsPerMinute={systemMetrics.requestsPerMinute}
+              avgResponseTime={systemMetrics.avgResponseTime}
+            />
+          </div>
+
+          {/* MoE Router - CENTER */}
+          <div className="col-span-6">
+            <MoERouter
+              metrics={routerMetrics}
+              realtimeLogs={systemLogs}
+            />
+          </div>
+
+          {/* Expert Agents - RIGHT */}
+          <div className="col-span-3">
+            <ExpertAgents agents={expertAgents} />
+          </div>
+        </div>
+
+        {/* System Overview */}
+        <SystemOverview
+          systemMetrics={systemMetrics}
+          alerts={alerts}
+        />
+
+        {/* Detailed Logs */}
+        <DetailedLogs logs={systemLogs} />
+      </div>
+    </div>
+  );
+}
