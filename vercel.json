@@ -1,5 +1,5 @@
 {
   "buildCommand": "vite build",
-  "outputDirectory": "client/dist",
+  "outputDirectory": "dist/public",
   "installCommand": "npm install"
 }
