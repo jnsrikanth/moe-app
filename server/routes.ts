@@ -14,7 +14,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/expert-agents", async (req, res) => {
     try {
       const agents = await storage.getExpertAgents();
-      res.json(agents);
+      // Ensure model labels come from the single source of truth (AGENT_MODELS)
+      const normalized = agents.map(a => ({
+        ...a,
+        model: AGENT_MODELS[(a.type as 'credit' | 'fraud' | 'esg')] || a.model,
+      }));
+      res.json(normalized);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch expert agents" });
     }
