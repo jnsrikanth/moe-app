@@ -12,6 +12,7 @@ import { Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function Dashboard() {
   const [expertAgents, setExpertAgents] = useState<ExpertAgent[]>([]);
@@ -203,15 +204,9 @@ export default function Dashboard() {
                     if (!selectedType) return;
                     setIsRunning(true);
                     try {
-                      const res = await fetch('/api/run-moe', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ type: selectedType, priority: selectedPriority }),
-                      });
-                      if (!res.ok) {
-                        const text = await res.text();
-                        throw new Error(text || `Request failed with ${res.status}`);
-                      }
+                      const res = await apiRequest('POST', '/api/run-moe', { type: selectedType, priority: selectedPriority });
+                      // Optionally read response JSON to confirm
+                      await res.json().catch(() => null);
                       toast({ title: 'Request submitted', description: `${selectedType} (${selectedPriority}) queued.` });
                     } catch (e: any) {
                       toast({
