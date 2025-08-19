@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { IncomingRequest } from "@/components/IncomingRequest";
@@ -204,15 +205,7 @@ export default function Dashboard() {
                     if (!selectedType) return;
                     setIsRunning(true);
                     try {
-                      const res = await fetch('/api/run-moe', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ type: selectedType, priority: selectedPriority }),
-                      });
-                      if (!res.ok) {
-                        const text = await res.text();
-                        throw new Error(text || `Request failed with ${res.status}`);
-                      }
+                      const res = await apiRequest('POST', '/api/run-moe', { type: selectedType, priority: selectedPriority });
                       toast({ title: 'Request submitted', description: `${selectedType} (${selectedPriority}) queued.` });
                     } catch (e: any) {
                       toast({
