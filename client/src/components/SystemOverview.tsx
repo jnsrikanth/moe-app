@@ -1,6 +1,8 @@
 import { SystemMetrics } from "@/types/moe";
 import { TrendingUp, Cpu, AlertTriangle, Bell } from "lucide-react";
 
+type ModelsInfo = { routerModel: string; agents: Record<string, string> };
+
 interface SystemOverviewProps {
   systemMetrics: SystemMetrics;
   alerts: Array<{
@@ -9,9 +11,10 @@ interface SystemOverviewProps {
     title: string;
     message: string;
   }>;
+  models?: ModelsInfo | null;
 }
 
-export function SystemOverview({ systemMetrics, alerts }: SystemOverviewProps) {
+export function SystemOverview({ systemMetrics, alerts, models }: SystemOverviewProps) {
   return (
     <div className="grid grid-cols-3 gap-6 mb-8">
       {/* Performance Analytics */}
@@ -49,17 +52,25 @@ export function SystemOverview({ systemMetrics, alerts }: SystemOverviewProps) {
         <div className="space-y-3">
           <div>
             <div className="text-sm text-gray-400">Router Model</div>
-            <div className="font-medium text-white">Phi-3 Mini (3.8B parameters)</div>
-            <div className="text-xs text-gray-500">Context: 128K tokens</div>
+            <div className="font-medium text-white">{models?.routerModel ?? '—'}</div>
           </div>
           <div>
             <div className="text-sm text-gray-400">Expert Models</div>
-            <div className="font-medium text-white">TinyLlama (1.1B parameters)</div>
-            <div className="text-xs text-gray-500">Quantized: 4-bit GGUF</div>
+            {models?.agents ? (
+              <ul className="text-white text-sm list-disc list-inside space-y-1">
+                {Object.entries(models.agents).map(([agentType, model]) => (
+                  <li key={agentType} className="font-medium">
+                    {agentType}: <span className="text-gray-300">{model}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-gray-400 text-sm">—</div>
+            )}
           </div>
           <div>
-            <div className="text-sm text-gray-400">Total Parameters</div>
-            <div className="font-medium text-green-500">7.1B (Router + 3 Experts)</div>
+            <div className="text-sm text-gray-400">Notes</div>
+            <div className="text-xs text-gray-400">Models reflect live backend configuration.</div>
           </div>
         </div>
       </div>

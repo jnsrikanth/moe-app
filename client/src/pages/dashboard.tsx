@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 import { IncomingRequest } from "@/components/IncomingRequest";
@@ -22,6 +23,10 @@ export default function Dashboard() {
   const [isConnected, setIsConnected] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const { toast } = useToast();
+  // Hooks must be declared before any early returns
+  const [selectedType, setSelectedType] = useState<string | undefined>();
+  const [selectedPriority, setSelectedPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [models, setModels] = useState<{ routerModel: string; agents: Record<string, string> } | null>(null);
 
   const { isConnected: wsConnected, subscribe } = useWebSocket();
 
@@ -51,6 +56,12 @@ export default function Dashboard() {
     staleTime: 30000,
   });
 
+  // Fetch models (fallback) in case WS initial_data hasn't arrived yet
+  const { data: initialModels } = useQuery({
+    queryKey: ['/api/models'],
+    staleTime: 60000,
+  });
+
   // Initialize state with fetched data
   useEffect(() => {
     if (initialAgents) setExpertAgents(initialAgents as ExpertAgent[]);
@@ -58,6 +69,7 @@ export default function Dashboard() {
     if (initialSystemMetrics) setSystemMetrics(initialSystemMetrics as SystemMetrics);
     if (initialLogs) setSystemLogs(initialLogs as SystemLog[]);
     if (initialRequests) setRequests(initialRequests as Request[]);
+    if (initialModels) setModels(initialModels as any);
   }, [initialAgents, initialRouterMetrics, initialSystemMetrics, initialLogs, initialRequests]);
 
   // WebSocket event subscriptions
@@ -69,6 +81,7 @@ export default function Dashboard() {
         setSystemMetrics(data.systemMetrics);
         setSystemLogs(data.systemLogs || []);
         setRequests(data.requests || []);
+        if (data.models) setModels(data.models);
         setIsConnected(true);
       }),
 
@@ -137,8 +150,6 @@ export default function Dashboard() {
     'Corporate ESG Assessment',
     'Small Business Loan',
   ];
-  const [selectedType, setSelectedType] = useState<string | undefined>();
-  const [selectedPriority, setSelectedPriority] = useState<'low' | 'medium' | 'high'>('medium');
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -203,15 +214,7 @@ export default function Dashboard() {
                     if (!selectedType) return;
                     setIsRunning(true);
                     try {
-                      const res = await fetch('/api/run-moe', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ type: selectedType, priority: selectedPriority }),
-                      });
-                      if (!res.ok) {
-                        const text = await res.text();
-                        throw new Error(text || `Request failed with ${res.status}`);
-                      }
+                      const res = await apiRequest('POST', '/api/run-moe', { type: selectedType, priority: selectedPriority });
                       toast({ title: 'Request submitted', description: `${selectedType} (${selectedPriority}) queued.` });
                     } catch (e: any) {
                       toast({
@@ -261,6 +264,7 @@ export default function Dashboard() {
         <SystemOverview
           systemMetrics={systemMetrics}
           alerts={alerts}
+          models={models}
         />
 
         {/* Detailed Logs */}

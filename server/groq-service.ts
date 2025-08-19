@@ -78,7 +78,8 @@ Respond in JSON format with: score, risk_level, key_factors, confidence, reasoni
       }
     } catch (error) {
       console.error('Credit analysis failed:', error);
-      throw new Error(`Credit analysis failed: ${error.message}`);
+      const msg = error instanceof Error ? error.message : String(error);
+      throw new Error(`Credit analysis failed: ${msg}`);
     }
   }
 
@@ -129,7 +130,8 @@ Respond in JSON format with: fraud_probability, risk_level, indicators, confiden
       }
     } catch (error) {
       console.error('Fraud detection failed:', error);
-      throw new Error(`Fraud detection failed: ${error.message}`);
+      const msg = error instanceof Error ? error.message : String(error);
+      throw new Error(`Fraud detection failed: ${msg}`);
     }
   }
 
@@ -182,7 +184,8 @@ Respond in JSON format with: environmental_score, social_score, governance_score
       }
     } catch (error) {
       console.error('ESG analysis failed:', error);
-      throw new Error(`ESG analysis failed: ${error.message}`);
+      const msg = error instanceof Error ? error.message : String(error);
+      throw new Error(`ESG analysis failed: ${msg}`);
     }
   }
 

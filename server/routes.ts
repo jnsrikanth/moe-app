@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { groqService } from "./groq-service";
-import { RealMoESystem } from "./real-moe-system";
+import { RealMoESystem, ROUTER_MODEL, AGENT_MODELS } from "./real-moe-system";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 
@@ -14,7 +14,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/expert-agents", async (req, res) => {
     try {
       const agents = await storage.getExpertAgents();
-      res.json(agents);
+      // Ensure model labels come from the single source of truth (AGENT_MODELS)
+      const normalized = agents.map(a => ({
+        ...a,
+        model: AGENT_MODELS[(a.type as 'credit' | 'fraud' | 'esg')] || a.model,
+      }));
+      res.json(normalized);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch expert agents" });
     }
@@ -86,6 +91,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Models endpoint to expose actual router/agent model labels
+  app.get("/api/models", async (req, res) => {
+    try {
+      res.json({
+        routerModel: ROUTER_MODEL,
+        agents: {
+          credit: AGENT_MODELS.credit,
+          fraud: AGENT_MODELS.fraud,
+          esg: AGENT_MODELS.esg,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch model labels" });
+    }
+  });
+
   app.get("/api/requests", async (req, res) => {
     try {
       const requests = await storage.getRequests();
@@ -115,9 +136,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error) {
       console.error("Groq test error:", error);
+      const msg = error instanceof Error ? error.message : String(error);
       res.status(500).json({ 
         status: "error", 
-        message: error.message 
+        message: msg 
       });
     }
   });
@@ -150,9 +172,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Credit analysis test error:", error);
+      const msg = error instanceof Error ? error.message : String(error);
       res.status(500).json({ 
         status: "error", 
-        message: error.message 
+        message: msg 
       });
     }
   });
@@ -201,14 +224,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           storage.getRequests()
         ]);
 
+        // Normalize agent model labels from single source of truth
+        const normalizedAgents = agents.map(a => ({
+          ...a,
+          model: AGENT_MODELS[(a.type as 'credit' | 'fraud' | 'esg')] || a.model,
+        }));
+
         ws.send(JSON.stringify({
           type: 'initial_data',
           data: {
-            expertAgents: agents,
+            expertAgents: normalizedAgents,
             routerMetrics,
             systemMetrics,
             systemLogs: logs,
-            requests
+            requests,
+            models: {
+              routerModel: ROUTER_MODEL,
+              agents: AGENT_MODELS,
+            }
           }
         }));
       } catch (error) {
@@ -251,13 +284,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
     } catch (error) {
       console.error('Error in real MoE processing:', error);
+      const msg = error instanceof Error ? error.message : String(error);
       
       // Add error log
       const errorLog = {
         id: randomUUID(),
         timestamp: new Date().toISOString(),
         level: 'error' as const,
-        message: `MoE processing error: ${error.message}`,
+        message: `MoE processing error: ${msg}`,
         source: 'MoE System',
       };
       await storage.addSystemLog(errorLog);
