@@ -30,6 +30,26 @@ export class RealMoESystem {
     this.initializeAgentInstances();
   }
 
+  // Public API: accept a new request, route it, and start processing
+  async handleNewRequest(newRequest: Request): Promise<void> {
+    // Add to storage and notify clients
+    await storage.addRequest(newRequest);
+    this.broadcastUpdate('new_request', newRequest);
+
+    // Route to appropriate agents
+    const agentIds = await this.routeRequest(newRequest);
+
+    // Update request with assigned agents and set to processing
+    const updated = await storage.updateRequest(newRequest.id, {
+      assignedAgents: agentIds,
+      status: 'processing',
+    });
+    this.broadcastUpdate('request_updated', updated);
+
+    // Begin processing
+    await this.processRequest(newRequest.id, agentIds);
+  }
+
   private initializeAgentInstances() {
     // Initialize with the same agent structure as the frontend expects
     const agentConfigs = [
@@ -55,13 +75,24 @@ export class RealMoESystem {
     const routingDecision = await this.makeRoutingDecision(request);
     
     // Log routing decision
-    await this.addSystemLog({
+    await storage.addSystemLog({
       id: randomUUID(),
       timestamp: new Date().toISOString(),
       level: 'info',
       message: `MoE Router: ${request.type} → ${routingDecision.selectedAgents.join(', ')}`,
       source: 'MoE Router',
     });
+
+    // Also log reasoning for transparency
+    if (routingDecision.reasoning) {
+      await storage.addSystemLog({
+        id: randomUUID(),
+        timestamp: new Date().toISOString(),
+        level: 'info',
+        message: `Routing reasoning: ${routingDecision.reasoning}`,
+        source: 'MoE Router',
+      });
+    }
 
     return routingDecision.selectedAgents;
   }
@@ -100,7 +131,7 @@ Respond with JSON: {"selected_agents": ["agent-id"], "reasoning": "explanation"}
       const response = await this.withRateLimit(() =>
         groq.chat.completions.create({
           messages: [{ role: 'user', content: prompt }],
-          model: 'llama3-8b-8192', // Using stable 8B model
+          model: ROUTER_MODEL, // Using stable 8B model
           max_tokens: 300,
           temperature: 0.3,
         })
@@ -211,7 +242,7 @@ Respond in JSON format.`;
     const response = await this.withRateLimit(() =>
       groq.chat.completions.create({
         messages: [{ role: 'user', content: prompt }],
-        model: 'llama3-8b-8192', // More reliable model
+        model: AGENT_MODELS.credit, // Credit agent model
         max_tokens: 400,
         temperature: 0.3,
       })
@@ -248,7 +279,7 @@ Respond in JSON format.`;
     const response = await this.withRateLimit(() =>
       groq.chat.completions.create({
         messages: [{ role: 'user', content: prompt }],
-        model: 'llama3-8b-8192', // Using consistent model
+        model: AGENT_MODELS.fraud, // Fraud agent model
         max_tokens: 400,
         temperature: 0.2,
       })
@@ -286,7 +317,7 @@ Respond in JSON format.`;
     const response = await this.withRateLimit(() =>
       groq.chat.completions.create({
         messages: [{ role: 'user', content: prompt }],
-        model: 'llama3-8b-8192', // Using consistent model
+        model: AGENT_MODELS.esg, // ESG agent model
         max_tokens: 500,
         temperature: 0.4,
       })
@@ -299,54 +330,10 @@ Respond in JSON format.`;
     };
   }
 
-  private async completeRequest(requestId: string, agentResults: any[]): Promise<void> {
-    const processingInfo = this.processingRequests.get(requestId);
-    if (!processingInfo) return;
-
-    const totalProcessingTime = Date.now() - processingInfo.startTime;
-
-    // Update request status
-    await storage.updateRequest(requestId, {
-      status: 'completed',
-      processingTime: totalProcessingTime / 1000, // Convert to seconds
-    });
-
-    // Reduce agent loads
-    for (const agentId of processingInfo.agentIds) {
-      const instance = this.agentInstances.get(agentId);
-      if (instance) {
-        instance.processingQueue = instance.processingQueue.filter(id => id !== requestId);
-        instance.currentLoad = Math.max(10, instance.currentLoad - Math.random() * 20 + 10);
-        instance.status = instance.currentLoad < 30 ? 'idle' : 'processing';
-        
-        await this.updateAgentMetrics(agentId);
-      }
-    }
-
-    // Log completion
-    await this.addSystemLog({
-      id: randomUUID(),
-      timestamp: new Date().toISOString(),
-      level: 'success',
-      message: `Request ${requestId} completed in ${(totalProcessingTime / 1000).toFixed(1)}s`,
-      source: 'MoE System',
-    });
-
-    // Broadcast completion
-    const updatedRequest = (await storage.getRequests()).find(r => r.id === requestId);
-    if (updatedRequest) {
-      this.broadcastUpdate('request_updated', updatedRequest);
-    }
-
-    this.processingRequests.delete(requestId);
-  }
-
   private async updateAgentMetrics(agentId: string): Promise<void> {
     const instance = this.agentInstances.get(agentId);
     if (!instance) return;
 
-    // Calculate real metrics based on actual processing
-    const uptime = (Date.now() - instance.startTime) / 1000;
     const tokensPerMinute = Math.floor(instance.currentLoad * 10 + Math.random() * 200);
     const responseTime = 1.0 + (instance.currentLoad / 100) * 2.0 + Math.random() * 0.5;
 
@@ -358,73 +345,75 @@ Respond in JSON format.`;
       responseTime: Math.round(responseTime * 10) / 10,
       isScaling: instance.currentLoad > 85,
       instanceCount: instance.currentLoad > 85 ? 2 : 1,
+      model: AGENT_MODELS[instance.agentType],
     });
 
-    // Broadcast agent update
     const updatedAgent = (await storage.getExpertAgents()).find(a => a.id === agentId);
     if (updatedAgent) {
       this.broadcastUpdate('agent_updated', updatedAgent);
     }
   }
 
-  private async addSystemLog(log: SystemLog): Promise<void> {
-    await storage.addSystemLog(log);
-    this.broadcastUpdate('new_log', log);
-  }
+  private async completeRequest(requestId: string, agentResults: any[]): Promise<void> {
+    const start = this.processingRequests.get(requestId)?.startTime || Date.now();
+    const durationMs = Date.now() - start;
 
-  // Public method to process new requests
-  async handleNewRequest(request: Request): Promise<void> {
-    // Add to storage
-    await storage.addRequest(request);
-    this.broadcastUpdate('new_request', request);
-
-    // Route to appropriate agents
-    const selectedAgents = await this.routeRequest(request);
-    
-    // Update request with assigned agents
-    await storage.updateRequest(request.id, {
-      status: 'processing',
-      assignedAgents: selectedAgents,
+    // Update request
+    await storage.updateRequest(requestId, {
+      status: 'completed',
+      processingTime: durationMs,
     });
 
-    const updatedRequest = (await storage.getRequests()).find(r => r.id === request.id);
-    if (updatedRequest) {
-      this.broadcastUpdate('request_updated', updatedRequest);
-    }
+    // Update agents back to idle and remove from queues
+    this.agentInstances.forEach(async (instance, agentId) => {
+      const idx = instance.processingQueue.indexOf(requestId);
+      if (idx >= 0) {
+        instance.processingQueue.splice(idx, 1);
+        instance.currentLoad = Math.max(5, instance.currentLoad - (10 + Math.random() * 20));
+        instance.status = instance.processingQueue.length > 0 ? 'processing' : 'idle';
+        await this.updateAgentMetrics(agentId);
+      }
+    });
 
-    // Process the request
-    await this.processRequest(request.id, selectedAgents);
+    // Broadcast request update
+    const req = (await storage.getRequests()).find(r => r.id === requestId);
+    if (req) this.broadcastUpdate('request_updated', req);
+
+    this.processingRequests.delete(requestId);
+
+    // Log completion summary
+    await storage.addSystemLog({
+      id: randomUUID(),
+      timestamp: new Date().toISOString(),
+      level: 'success',
+      message: `Request ${requestId} completed in ${Math.round(durationMs)}ms`,
+      source: 'MoE System',
+    });
   }
 
-  // Simple rate limiter that enforces minimum spacing and honors Retry-After on 429
   private async withRateLimit<T>(runner: () => Promise<T>): Promise<T> {
-    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
     const now = Date.now();
-    if (now < this.nextAllowedAt) {
-      await delay(this.nextAllowedAt - now);
+    const wait = Math.max(0, this.nextAllowedAt - now);
+    if (wait > 0) {
+      await new Promise(res => setTimeout(res, wait));
     }
     try {
       const result = await runner();
       this.nextAllowedAt = Date.now() + this.minIntervalMs;
       return result;
-    } catch (err: any) {
-      if (err?.status === 429) {
-        const retryHeader = err?.headers?.['retry-after'] ?? err?.headers?.['Retry-After'];
-        const retrySec = Number.parseInt(retryHeader || '0', 10);
-        const retryMs = Number.isNaN(retrySec) ? this.minIntervalMs : retrySec * 1000;
-        const backoff = Math.max(this.minIntervalMs, retryMs);
-        this.nextAllowedAt = Date.now() + backoff;
-        await this.addSystemLog({
-          id: randomUUID(),
-          timestamp: new Date().toISOString(),
-          level: 'warning',
-          message: `Groq rate limit (429). Backing off for ${Math.round(backoff / 1000)}s`,
-          source: 'Groq RateLimiter',
-        });
-      }
-      throw err;
+    } catch (e) {
+      this.nextAllowedAt = Date.now() + this.minIntervalMs;
+      throw e;
     }
   }
 }
 
 export let realMoESystem: RealMoESystem;
+
+// Exported model constants so the API and UI can reflect real-time labels
+export const ROUTER_MODEL = 'llama3-8b-8192';
+export const AGENT_MODELS: Record<'credit' | 'fraud' | 'esg', string> = {
+  credit: 'llama3-8b-8192',
+  fraud: 'llama3-8b-8192',
+  esg: 'llama3-8b-8192',
+};
