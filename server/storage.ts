@@ -1,4 +1,4 @@
-import { type ExpertAgent, type Request, type RouterMetrics, type SystemLog, type SystemMetrics } from "@shared/schema";
+import { type ExpertAgent, type Request, type RouterMetrics, type SystemLog, type SystemMetrics } from "../shared/schema.js";
 
 export interface IStorage {
   getExpertAgents(): Promise<ExpertAgent[]>;

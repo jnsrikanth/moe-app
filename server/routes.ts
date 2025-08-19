@@ -83,6 +83,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Health check endpoint for Railway
+  app.get("/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
   // Test credit analysis with real Groq
   app.post("/api/test-credit-analysis", async (req, res) => {
     try {

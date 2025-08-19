@@ -1,7 +1,7 @@
 import Groq from 'groq-sdk';
 import { randomUUID } from 'crypto';
 import { storage } from './storage';
-import { type ExpertAgent, type Request, type SystemLog } from '@shared/schema';
+import { type ExpertAgent, type Request, type SystemLog } from '../shared/schema.js';
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
