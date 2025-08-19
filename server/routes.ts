@@ -20,6 +20,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Manual trigger to run one MoE processing cycle (no background spam)
+  app.post("/api/run-moe", async (req, res) => {
+    try {
+      const payload = (req.body || {}) as Partial<{
+        type: string;
+        priority: "low" | "medium" | "high";
+      }>;
+
+      const requestTypes = [
+        'Loan Application - Personal',
+        'Insurance Claim - Auto',
+        'ESG Investment Report',
+        'Credit Card Application',
+        'Mortgage Pre-approval',
+        'Fraud Alert Investigation',
+        'Corporate ESG Assessment',
+        'Small Business Loan'
+      ];
+      const priorities = ['low', 'medium', 'high'] as const;
+
+      const requestId = `REQ-${Date.now()}`;
+      const newRequest = {
+        id: requestId,
+        type: payload.type || requestTypes[Math.floor(Math.random() * requestTypes.length)],
+        priority: (payload.priority as typeof priorities[number]) || priorities[Math.floor(Math.random() * priorities.length)],
+        status: 'pending' as const,
+        timestamp: new Date().toISOString(),
+        assignedAgents: [],
+      };
+
+      await realMoESystem.handleNewRequest(newRequest);
+      res.json({ status: 'queued', request: newRequest });
+    } catch (error: any) {
+      console.error('Manual MoE trigger error:', error);
+      const status = error?.status === 429 ? 429 : 500;
+      res.status(status).json({ status: 'error', message: error?.message || 'Failed to run MoE process' });
+    }
+  });
+
   app.get("/api/router-metrics", async (req, res) => {
     try {
       const metrics = await storage.getRouterMetrics();
@@ -245,9 +284,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Start real MoE processing
-  console.log('🤖 Starting Real MoE System with Groq Cloud integration...');
-  setInterval(generateRealMoERequests, 12000 + Math.random() * 8000); // Every 12-20 seconds (slower for real processing)
-  setInterval(updateRouterMetrics, 5000); // Every 5 seconds
+  const enableBackground = process.env.GROQ_ENABLE_BACKGROUND === '1';
+  if (enableBackground) {
+    console.log('🤖 Background MoE processing ENABLED with Groq Cloud integration...');
+    setInterval(generateRealMoERequests, 60000 + Math.random() * 60000); // Every 60-120 seconds
+    setInterval(updateRouterMetrics, 10000); // Every 10 seconds
+  } else {
+    console.log('🛑 Background MoE processing DISABLED (set GROQ_ENABLE_BACKGROUND=1 to enable).');
+  }
 
   return httpServer;
 }
