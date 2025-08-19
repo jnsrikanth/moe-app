@@ -20,6 +20,10 @@ export class RealMoESystem {
   private agentInstances: Map<string, AgentInstance> = new Map();
   private processingRequests: Map<string, { startTime: number; agentIds: string[] }> = new Map();
   private broadcastUpdate: (type: string, data: any) => void;
+  // Rate limiting and kill switch controls
+  private killSwitch = process.env.GROQ_KILL_SWITCH === '1';
+  private minIntervalMs = Number.parseInt(process.env.GROQ_MIN_REQUEST_INTERVAL_MS || '15000', 10);
+  private nextAllowedAt = 0;
 
   constructor(broadcastFn: (type: string, data: any) => void) {
     this.broadcastUpdate = broadcastFn;
@@ -86,12 +90,21 @@ Decision Criteria (weights):
 Respond with JSON: {"selected_agents": ["agent-id"], "reasoning": "explanation"}`;
 
     try {
-      const response = await groq.chat.completions.create({
-        messages: [{ role: 'user', content: prompt }],
-        model: 'llama3-8b-8192', // Using stable 8B model
-        max_tokens: 300,
-        temperature: 0.3,
-      });
+      if (this.killSwitch) {
+        return {
+          selectedAgents: this.fallbackRouting(request),
+          reasoning: 'GROQ_KILL_SWITCH enabled, using fallback routing',
+        };
+      }
+
+      const response = await this.withRateLimit(() =>
+        groq.chat.completions.create({
+          messages: [{ role: 'user', content: prompt }],
+          model: 'llama3-8b-8192', // Using stable 8B model
+          max_tokens: 300,
+          temperature: 0.3,
+        })
+      );
 
       const content = response.choices[0]?.message?.content || '';
       
@@ -187,12 +200,22 @@ Provide detailed credit analysis including:
 
 Respond in JSON format.`;
 
-    const response = await groq.chat.completions.create({
-      messages: [{ role: 'user', content: prompt }],
-      model: 'llama3-8b-8192', // More reliable model
-      max_tokens: 400,
-      temperature: 0.3,
-    });
+    if (this.killSwitch) {
+      return {
+        agentType: 'credit',
+        analysis: 'Kill switch active: simulated credit analysis.',
+        processingTime: Date.now(),
+      };
+    }
+
+    const response = await this.withRateLimit(() =>
+      groq.chat.completions.create({
+        messages: [{ role: 'user', content: prompt }],
+        model: 'llama3-8b-8192', // More reliable model
+        max_tokens: 400,
+        temperature: 0.3,
+      })
+    );
 
     return {
       agentType: 'credit',
@@ -214,12 +237,22 @@ Provide fraud risk assessment including:
 
 Respond in JSON format.`;
 
-    const response = await groq.chat.completions.create({
-      messages: [{ role: 'user', content: prompt }],
-      model: 'llama3-8b-8192', // Using consistent model
-      max_tokens: 400,
-      temperature: 0.2,
-    });
+    if (this.killSwitch) {
+      return {
+        agentType: 'fraud',
+        analysis: 'Kill switch active: simulated fraud analysis.',
+        processingTime: Date.now(),
+      };
+    }
+
+    const response = await this.withRateLimit(() =>
+      groq.chat.completions.create({
+        messages: [{ role: 'user', content: prompt }],
+        model: 'llama3-8b-8192', // Using consistent model
+        max_tokens: 400,
+        temperature: 0.2,
+      })
+    );
 
     return {
       agentType: 'fraud',
@@ -242,12 +275,22 @@ Provide ESG assessment including:
 
 Respond in JSON format.`;
 
-    const response = await groq.chat.completions.create({
-      messages: [{ role: 'user', content: prompt }],
-      model: 'llama3-8b-8192', // Using consistent model
-      max_tokens: 500,
-      temperature: 0.4,
-    });
+    if (this.killSwitch) {
+      return {
+        agentType: 'esg',
+        analysis: 'Kill switch active: simulated ESG analysis.',
+        processingTime: Date.now(),
+      };
+    }
+
+    const response = await this.withRateLimit(() =>
+      groq.chat.completions.create({
+        messages: [{ role: 'user', content: prompt }],
+        model: 'llama3-8b-8192', // Using consistent model
+        max_tokens: 500,
+        temperature: 0.4,
+      })
+    );
 
     return {
       agentType: 'esg',
@@ -351,6 +394,36 @@ Respond in JSON format.`;
 
     // Process the request
     await this.processRequest(request.id, selectedAgents);
+  }
+
+  // Simple rate limiter that enforces minimum spacing and honors Retry-After on 429
+  private async withRateLimit<T>(runner: () => Promise<T>): Promise<T> {
+    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const now = Date.now();
+    if (now < this.nextAllowedAt) {
+      await delay(this.nextAllowedAt - now);
+    }
+    try {
+      const result = await runner();
+      this.nextAllowedAt = Date.now() + this.minIntervalMs;
+      return result;
+    } catch (err: any) {
+      if (err?.status === 429) {
+        const retryHeader = err?.headers?.['retry-after'] ?? err?.headers?.['Retry-After'];
+        const retrySec = Number.parseInt(retryHeader || '0', 10);
+        const retryMs = Number.isNaN(retrySec) ? this.minIntervalMs : retrySec * 1000;
+        const backoff = Math.max(this.minIntervalMs, retryMs);
+        this.nextAllowedAt = Date.now() + backoff;
+        await this.addSystemLog({
+          id: randomUUID(),
+          timestamp: new Date().toISOString(),
+          level: 'warning',
+          message: `Groq rate limit (429). Backing off for ${Math.round(backoff / 1000)}s`,
+          source: 'Groq RateLimiter',
+        });
+      }
+      throw err;
+    }
   }
 }
 
