@@ -22,6 +22,9 @@ export default function Dashboard() {
   const [isConnected, setIsConnected] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const { toast } = useToast();
+  // Hooks must be declared before any early returns
+  const [selectedType, setSelectedType] = useState<string | undefined>();
+  const [selectedPriority, setSelectedPriority] = useState<'low' | 'medium' | 'high'>('medium');
 
   const { isConnected: wsConnected, subscribe } = useWebSocket();
 
@@ -137,8 +140,6 @@ export default function Dashboard() {
     'Corporate ESG Assessment',
     'Small Business Loan',
   ];
-  const [selectedType, setSelectedType] = useState<string | undefined>();
-  const [selectedPriority, setSelectedPriority] = useState<'low' | 'medium' | 'high'>('medium');
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
