@@ -190,13 +190,41 @@ Respond with JSON: {"selected_agents": ["agent-id"], "reasoning": "explanation"}
       }
     }
 
-    // Process with each assigned agent
-    const agentResults = await Promise.all(
-      agentIds.map(agentId => this.processWithAgent(requestId, agentId))
-    );
+    // Process with each assigned agent, tolerating individual failures
+    let agentResults: any[] = [];
+    try {
+      const settled = await Promise.allSettled(
+        agentIds.map(agentId => this.processWithAgent(requestId, agentId))
+      );
+      agentResults = settled
+        .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
+        .map(r => r.value);
 
-    // Aggregate results and complete request
-    await this.completeRequest(requestId, agentResults);
+      // Optionally log failures
+      for (const r of settled) {
+        if (r.status === 'rejected') {
+          await storage.addSystemLog({
+            id: randomUUID(),
+            timestamp: new Date().toISOString(),
+            level: 'error',
+            message: `Agent processing failed: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`,
+            source: 'MoE System',
+          });
+        }
+      }
+    } catch (e) {
+      // This block is unlikely with allSettled, but guard anyway
+      await storage.addSystemLog({
+        id: randomUUID(),
+        timestamp: new Date().toISOString(),
+        level: 'error',
+        message: `Unexpected processing error: ${e instanceof Error ? e.message : String(e)}`,
+        source: 'MoE System',
+      });
+    } finally {
+      // Aggregate results and complete request regardless of individual agent failures
+      await this.completeRequest(requestId, agentResults);
+    }
   }
 
   private async processWithAgent(requestId: string, agentId: string): Promise<any> {
