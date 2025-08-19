@@ -224,10 +224,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           storage.getRequests()
         ]);
 
+        // Normalize agent model labels from single source of truth
+        const normalizedAgents = agents.map(a => ({
+          ...a,
+          model: AGENT_MODELS[(a.type as 'credit' | 'fraud' | 'esg')] || a.model,
+        }));
+
         ws.send(JSON.stringify({
           type: 'initial_data',
           data: {
-            expertAgents: agents,
+            expertAgents: normalizedAgents,
             routerMetrics,
             systemMetrics,
             systemLogs: logs,

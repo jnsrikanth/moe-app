@@ -75,23 +75,27 @@ export class RealMoESystem {
     const routingDecision = await this.makeRoutingDecision(request);
     
     // Log routing decision
-    await storage.addSystemLog({
+    const routeLog = {
       id: randomUUID(),
       timestamp: new Date().toISOString(),
-      level: 'info',
+      level: 'info' as const,
       message: `MoE Router: ${request.type} → ${routingDecision.selectedAgents.join(', ')}`,
       source: 'MoE Router',
-    });
+    };
+    await storage.addSystemLog(routeLog);
+    this.broadcastUpdate('new_log', routeLog);
 
     // Also log reasoning for transparency
     if (routingDecision.reasoning) {
-      await storage.addSystemLog({
+      const reasonLog = {
         id: randomUUID(),
         timestamp: new Date().toISOString(),
-        level: 'info',
+        level: 'info' as const,
         message: `Routing reasoning: ${routingDecision.reasoning}`,
         source: 'MoE Router',
-      });
+      };
+      await storage.addSystemLog(reasonLog);
+      this.broadcastUpdate('new_log', reasonLog);
     }
 
     return routingDecision.selectedAgents;
@@ -200,27 +204,47 @@ Respond with JSON: {"selected_agents": ["agent-id"], "reasoning": "explanation"}
         .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
         .map(r => r.value);
 
+      // Broadcast agent result summaries for visibility
+      for (const res of agentResults) {
+        try {
+          const summary = typeof res?.analysis === 'string' ? res.analysis.slice(0, 180) : JSON.stringify(res).slice(0, 180);
+          const resultLog = {
+            id: randomUUID(),
+            timestamp: new Date().toISOString(),
+            level: 'info' as const,
+            message: `Agent result (${res?.agentType ?? 'unknown'}): ${summary}${summary.length === 180 ? '…' : ''}`,
+            source: 'MoE System',
+          };
+          await storage.addSystemLog(resultLog);
+          this.broadcastUpdate('new_log', resultLog);
+        } catch {}
+      }
+
       // Optionally log failures
       for (const r of settled) {
         if (r.status === 'rejected') {
-          await storage.addSystemLog({
+          const errLog = {
             id: randomUUID(),
             timestamp: new Date().toISOString(),
-            level: 'error',
+            level: 'error' as const,
             message: `Agent processing failed: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`,
             source: 'MoE System',
-          });
+          };
+          await storage.addSystemLog(errLog);
+          this.broadcastUpdate('new_log', errLog);
         }
       }
     } catch (e) {
       // This block is unlikely with allSettled, but guard anyway
-      await storage.addSystemLog({
+      const unexpectedLog = {
         id: randomUUID(),
         timestamp: new Date().toISOString(),
-        level: 'error',
+        level: 'error' as const,
         message: `Unexpected processing error: ${e instanceof Error ? e.message : String(e)}`,
         source: 'MoE System',
-      });
+      };
+      await storage.addSystemLog(unexpectedLog);
+      this.broadcastUpdate('new_log', unexpectedLog);
     } finally {
       // Aggregate results and complete request regardless of individual agent failures
       await this.completeRequest(requestId, agentResults);
@@ -410,13 +434,15 @@ Respond in JSON format.`;
     this.processingRequests.delete(requestId);
 
     // Log completion summary
-    await storage.addSystemLog({
+    const completeLog = {
       id: randomUUID(),
       timestamp: new Date().toISOString(),
-      level: 'success',
+      level: 'success' as const,
       message: `Request ${requestId} completed in ${Math.round(durationMs)}ms`,
       source: 'MoE System',
-    });
+    };
+    await storage.addSystemLog(completeLog);
+    this.broadcastUpdate('new_log', completeLog);
   }
 
   private async withRateLimit<T>(runner: () => Promise<T>): Promise<T> {
