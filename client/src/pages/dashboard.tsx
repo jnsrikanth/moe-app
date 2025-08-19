@@ -25,6 +25,20 @@ export default function Dashboard() {
 
   const { isConnected: wsConnected, subscribe } = useWebSocket();
 
+  // Manual trigger controls (hooks must be declared before any early returns)
+  const requestTypes = [
+    'Loan Application - Personal',
+    'Insurance Claim - Auto',
+    'ESG Investment Report',
+    'Credit Card Application',
+    'Mortgage Pre-approval',
+    'Fraud Alert Investigation',
+    'Corporate ESG Assessment',
+    'Small Business Loan',
+  ];
+  const [selectedType, setSelectedType] = useState<string | undefined>();
+  const [selectedPriority, setSelectedPriority] = useState<'low' | 'medium' | 'high'>('medium');
+
   // Fetch initial data
   const { data: initialAgents } = useQuery({
     queryKey: ['/api/expert-agents'],
@@ -125,20 +139,6 @@ export default function Dashboard() {
       </div>
     );
   }
-
-  // Manual trigger controls
-  const requestTypes = [
-    'Loan Application - Personal',
-    'Insurance Claim - Auto',
-    'ESG Investment Report',
-    'Credit Card Application',
-    'Mortgage Pre-approval',
-    'Fraud Alert Investigation',
-    'Corporate ESG Assessment',
-    'Small Business Loan',
-  ];
-  const [selectedType, setSelectedType] = useState<string | undefined>();
-  const [selectedPriority, setSelectedPriority] = useState<'low' | 'medium' | 'high'>('medium');
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
