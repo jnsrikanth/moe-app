@@ -26,6 +26,7 @@ export default function Dashboard() {
   // Hooks must be declared before any early returns
   const [selectedType, setSelectedType] = useState<string | undefined>();
   const [selectedPriority, setSelectedPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [models, setModels] = useState<{ routerModel: string; agents: Record<string, string> } | null>(null);
 
   const { isConnected: wsConnected, subscribe } = useWebSocket();
 
@@ -55,6 +56,12 @@ export default function Dashboard() {
     staleTime: 30000,
   });
 
+  // Fetch models (fallback) in case WS initial_data hasn't arrived yet
+  const { data: initialModels } = useQuery({
+    queryKey: ['/api/models'],
+    staleTime: 60000,
+  });
+
   // Initialize state with fetched data
   useEffect(() => {
     if (initialAgents) setExpertAgents(initialAgents as ExpertAgent[]);
@@ -62,6 +69,7 @@ export default function Dashboard() {
     if (initialSystemMetrics) setSystemMetrics(initialSystemMetrics as SystemMetrics);
     if (initialLogs) setSystemLogs(initialLogs as SystemLog[]);
     if (initialRequests) setRequests(initialRequests as Request[]);
+    if (initialModels) setModels(initialModels as any);
   }, [initialAgents, initialRouterMetrics, initialSystemMetrics, initialLogs, initialRequests]);
 
   // WebSocket event subscriptions
@@ -73,6 +81,7 @@ export default function Dashboard() {
         setSystemMetrics(data.systemMetrics);
         setSystemLogs(data.systemLogs || []);
         setRequests(data.requests || []);
+        if (data.models) setModels(data.models);
         setIsConnected(true);
       }),
 
