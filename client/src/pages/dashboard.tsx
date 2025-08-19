@@ -264,6 +264,7 @@ export default function Dashboard() {
         <SystemOverview
           systemMetrics={systemMetrics}
           alerts={alerts}
+          models={models}
         />
 
         {/* Detailed Logs */}
