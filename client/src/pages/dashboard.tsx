@@ -9,6 +9,9 @@ import { SystemOverview } from "@/components/SystemOverview";
 import { DetailedLogs } from "@/components/DetailedLogs";
 import { ExpertAgent, Request, RouterMetrics, SystemLog, SystemMetrics } from "@/types/moe";
 import { Activity } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function Dashboard() {
   const [expertAgents, setExpertAgents] = useState<ExpertAgent[]>([]);
@@ -17,6 +20,8 @@ export default function Dashboard() {
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
   const [systemMetrics, setSystemMetrics] = useState<SystemMetrics | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+  const { toast } = useToast();
 
   const { isConnected: wsConnected, subscribe } = useWebSocket();
 
@@ -48,11 +53,11 @@ export default function Dashboard() {
 
   // Initialize state with fetched data
   useEffect(() => {
-    if (initialAgents) setExpertAgents(initialAgents);
-    if (initialRouterMetrics) setRouterMetrics(initialRouterMetrics);
-    if (initialSystemMetrics) setSystemMetrics(initialSystemMetrics);
-    if (initialLogs) setSystemLogs(initialLogs);
-    if (initialRequests) setRequests(initialRequests);
+    if (initialAgents) setExpertAgents(initialAgents as ExpertAgent[]);
+    if (initialRouterMetrics) setRouterMetrics(initialRouterMetrics as RouterMetrics);
+    if (initialSystemMetrics) setSystemMetrics(initialSystemMetrics as SystemMetrics);
+    if (initialLogs) setSystemLogs(initialLogs as SystemLog[]);
+    if (initialRequests) setRequests(initialRequests as Request[]);
   }, [initialAgents, initialRouterMetrics, initialSystemMetrics, initialLogs, initialRequests]);
 
   // WebSocket event subscriptions
@@ -121,6 +126,20 @@ export default function Dashboard() {
     );
   }
 
+  // Manual trigger controls
+  const requestTypes = [
+    'Loan Application - Personal',
+    'Insurance Claim - Auto',
+    'ESG Investment Report',
+    'Credit Card Application',
+    'Mortgage Pre-approval',
+    'Fraud Alert Investigation',
+    'Corporate ESG Assessment',
+    'Small Business Loan',
+  ];
+  const [selectedType, setSelectedType] = useState<string | undefined>();
+  const [selectedPriority, setSelectedPriority] = useState<'low' | 'medium' | 'high'>('medium');
+
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <DisclaimerBanner />
@@ -150,6 +169,63 @@ export default function Dashboard() {
               <div className="bg-gray-800 px-4 py-2 rounded-lg">
                 <div className="text-xs text-gray-400">Active Requests</div>
                 <div className="text-xl font-bold text-white">{routerMetrics.activeRequests}</div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Select onValueChange={setSelectedType} value={selectedType}>
+                  <SelectTrigger className="w-[240px] bg-gray-800 border-gray-700 text-white">
+                    <SelectValue placeholder="Select request type" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-800 text-white border-gray-700">
+                    {requestTypes.map((opt) => (
+                      <SelectItem key={opt} value={opt} className="focus:bg-gray-700">
+                        {opt}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select onValueChange={(v) => setSelectedPriority(v as 'low' | 'medium' | 'high')} value={selectedPriority}>
+                  <SelectTrigger className="w-[150px] bg-gray-800 border-gray-700 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-800 text-white border-gray-700">
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  variant="default"
+                  className="bg-blue-600 hover:bg-blue-700"
+                  disabled={isRunning || !selectedType}
+                  onClick={async () => {
+                    if (!selectedType) return;
+                    setIsRunning(true);
+                    try {
+                      const res = await fetch('/api/run-moe', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ type: selectedType, priority: selectedPriority }),
+                      });
+                      if (!res.ok) {
+                        const text = await res.text();
+                        throw new Error(text || `Request failed with ${res.status}`);
+                      }
+                      toast({ title: 'Request submitted', description: `${selectedType} (${selectedPriority}) queued.` });
+                    } catch (e: any) {
+                      toast({
+                        title: 'Submit failed',
+                        description: e?.message || 'Unknown error',
+                        variant: 'destructive',
+                      });
+                    } finally {
+                      setIsRunning(false);
+                    }
+                  }}
+                >
+                  {isRunning ? 'Submitting…' : 'Submit'}
+                </Button>
               </div>
             </div>
           </div>
