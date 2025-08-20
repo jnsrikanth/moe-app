@@ -5,9 +5,10 @@ interface IncomingRequestProps {
   currentRequest: Request | null;
   requestsPerMinute: number;
   avgResponseTime: number;
+  finalDecision?: { status: 'Approved' | 'Declined'; rationale: string } | null;
 }
 
-export function IncomingRequest({ requests, currentRequest, requestsPerMinute, avgResponseTime }: IncomingRequestProps) {
+export function IncomingRequest({ requests, currentRequest, requestsPerMinute, avgResponseTime, finalDecision }: IncomingRequestProps) {
   const queuedRequests = requests.filter(req => req.status === 'pending').slice(0, 3);
 
   const getPriorityColor = (priority: string) => {
@@ -41,6 +42,29 @@ export function IncomingRequest({ requests, currentRequest, requestsPerMinute, a
             <span className="text-gray-400">Type:</span>
             <span className="text-blue-400 font-medium">{currentRequest.type}</span>
           </div>
+          {finalDecision && (
+            <div className="mt-3">
+              <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-bold ${
+                finalDecision.status === 'Approved' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+              }`}>
+                FINAL DECISION: {finalDecision.status}
+              </div>
+              <div className="mt-1 text-xs text-gray-300">{finalDecision.rationale}</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Last Decision (when no active request) */}
+      {!currentRequest && finalDecision && (
+        <div className="bg-gray-700 rounded-lg p-4 mb-4">
+          <div className="text-xs text-gray-400 mb-2">LAST DECISION</div>
+          <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-bold ${
+            finalDecision.status === 'Approved' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+          }`}>
+            FINAL DECISION: {finalDecision.status}
+          </div>
+          <div className="mt-1 text-xs text-gray-300">{finalDecision.rationale}</div>
         </div>
       )}
 

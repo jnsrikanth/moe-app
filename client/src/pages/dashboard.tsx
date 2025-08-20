@@ -112,6 +112,19 @@ export default function Dashboard() {
   }, [subscribe]);
 
   const currentRequest = requests.find(req => req.status === 'processing') || null;
+  // Compute latest FINAL DECISION from logs
+  const latestDecisionLog = [...systemLogs].reverse().find(l => l.source === 'MoE Decision' && l.message?.toUpperCase().startsWith('FINAL DECISION'));
+  const finalDecision = (() => {
+    if (!latestDecisionLog?.message) return null;
+    // Expect format: "FINAL DECISION: Approved — rationale"
+    const msg = latestDecisionLog.message.replace(/^FINAL DECISION:\s*/i, '');
+    const parts = msg.split(/\s+—\s+|\s+-\s+|\s+--\s+/); // support different dashes
+    const statusRaw = parts[0]?.trim();
+    const rationale = parts.slice(1).join(' — ').trim();
+    const status = /approved/i.test(statusRaw) ? 'Approved' : /declined|rejected/i.test(statusRaw) ? 'Declined' : undefined;
+    if (!status) return null;
+    return { status, rationale } as { status: 'Approved' | 'Declined'; rationale: string };
+  })();
   const alerts = [
     {
       id: '1',
@@ -243,6 +256,7 @@ export default function Dashboard() {
               currentRequest={currentRequest}
               requestsPerMinute={systemMetrics.requestsPerMinute}
               avgResponseTime={systemMetrics.avgResponseTime}
+              finalDecision={finalDecision}
             />
           </div>
 
