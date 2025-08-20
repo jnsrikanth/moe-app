@@ -443,6 +443,136 @@ Respond in JSON format.`;
     };
     await storage.addSystemLog(completeLog);
     this.broadcastUpdate('new_log', completeLog);
+
+    // Compute and broadcast FINAL DECISION summary
+    try {
+      const decision = this.computeFinalDecision(agentResults);
+      const finalLog = {
+        id: randomUUID(),
+        timestamp: new Date().toISOString(),
+        level: decision.status === 'Approved' ? 'success' as const : 'warning' as const,
+        message: `FINAL DECISION: ${decision.status} — ${decision.rationale}`,
+        source: 'MoE Decision',
+      };
+      await storage.addSystemLog(finalLog);
+      this.broadcastUpdate('new_log', finalLog);
+    } catch (e) {
+      const fallbackLog = {
+        id: randomUUID(),
+        timestamp: new Date().toISOString(),
+        level: 'info' as const,
+        message: 'Final decision summary unavailable (could not parse agent results).',
+        source: 'MoE Decision',
+      };
+      await storage.addSystemLog(fallbackLog);
+      this.broadcastUpdate('new_log', fallbackLog);
+    }
+  }
+
+  // Heuristic final decision aggregator across agent results
+  private computeFinalDecision(agentResults: any[]): { status: 'Approved' | 'Declined'; rationale: string } {
+    let fraudProb: number | undefined;
+    let creditRisk: string | undefined;
+    let creditScore: number | undefined;
+    let esgOk: boolean | undefined;
+
+    const texts: string[] = [];
+
+    const parseMaybeJSON = (s: string) => {
+      try {
+        return JSON.parse(s);
+      } catch {
+        return undefined;
+      }
+    };
+
+    for (const r of agentResults) {
+      const text = typeof r?.analysis === 'string' ? r.analysis : '';
+      if (text) texts.push(text);
+
+      const data = text ? parseMaybeJSON(text) : undefined;
+      const agentType = r?.agentType as string | undefined;
+
+      if (agentType === 'fraud') {
+        // Expect keys like fraud probability 0-100 or 0-1
+        let p: number | undefined;
+        if (data) {
+          p = (data.fraud_probability ?? data.fraudProbability ?? data.probability) as number | undefined;
+        }
+        if (p === undefined) {
+          const m = text.match(/(fraud[^\d]{0,10}|probab)[^\d]{0,10}(\d{1,3})(?:\.(\d+))?%/i);
+          if (m) p = Number(`${m[2]}${m[3] ? '.' + m[3] : ''}`);
+        }
+        if (p !== undefined) {
+          fraudProb = p > 1 ? p / 100 : p; // normalize to 0-1
+        }
+      }
+
+      if (agentType === 'credit') {
+        if (data) {
+          const risk = (data.risk_level ?? data.riskLevel ?? data.risk) as string | undefined;
+          if (risk) creditRisk = String(risk);
+          const score = (data.credit_score ?? data.creditScore ?? data.score) as number | undefined;
+          if (typeof score === 'number') creditScore = score;
+        }
+        if (!creditRisk) {
+          const rm = text.match(/risk\s*level\s*[:\-]?\s*(low|medium|high)/i);
+          if (rm) creditRisk = rm[1];
+        }
+        if (creditScore === undefined) {
+          const sm = text.match(/credit\s*score\s*[:\-]?\s*(\d{3})/i);
+          if (sm) creditScore = Number(sm[1]);
+        }
+      }
+
+      if (agentType === 'esg') {
+        if (data) {
+          const e = data.environmental_score ?? data.environmentalScore;
+          const s = data.social_score ?? data.socialScore;
+          const g = data.governance_score ?? data.governanceScore;
+          const rating = data.overall_rating ?? data.overallRating ?? data.overall;
+          if (typeof e === 'number' && typeof s === 'number' && typeof g === 'number') {
+            esgOk = (e + s + g) / 3 >= 50;
+          } else if (typeof rating === 'string') {
+            esgOk = /a|b|pass|good|positive/i.test(rating);
+          }
+        }
+      }
+    }
+
+    // Keyword-based override if any agent gave explicit decision
+    const joined = texts.join(' \n ').toLowerCase();
+    if (/\b(final|overall)?\s*decision\b[^\n]*\bapprove(d)?\b/.test(joined)) {
+      return { status: 'Approved', rationale: 'Explicit approval found in agent outputs.' };
+    }
+    if (/\b(final|overall)?\s*decision\b[^\n]*\bdecline(d)?|reject(ed)?\b/.test(joined)) {
+      return { status: 'Declined', rationale: 'Explicit decline/reject found in agent outputs.' };
+    }
+
+    // Heuristics
+    const highFraud = fraudProb !== undefined && fraudProb >= 0.6;
+    const highRisk = typeof creditRisk === 'string' && /high/i.test(creditRisk);
+    const lowScore = typeof creditScore === 'number' && creditScore < 600;
+    const poorESG = esgOk === false;
+
+    if (highFraud || highRisk || lowScore) {
+      const reasons = [
+        highFraud ? `Fraud probability ${(Math.round((fraudProb! * 100)))}%` : null,
+        highRisk ? `Credit risk ${creditRisk}` : null,
+        lowScore ? `Credit score ${creditScore}` : null,
+        poorESG ? 'ESG concerns' : null,
+      ].filter(Boolean).join('; ');
+      return { status: 'Declined', rationale: reasons || 'Risk thresholds not met.' };
+    }
+
+    const reasons = [
+      fraudProb !== undefined ? `Fraud probability ${(Math.round(fraudProb * 100))}%` : null,
+      creditRisk ? `Credit risk ${creditRisk}` : null,
+      creditScore !== undefined ? `Credit score ${creditScore}` : null,
+      esgOk === true ? 'ESG acceptable' : null,
+    ].filter(Boolean).join('; ');
+
+    return { status: 'Approved', rationale: reasons || 'Heuristics indicate acceptable risk.' };
   }
 
   private async withRateLimit<T>(runner: () => Promise<T>): Promise<T> {
