@@ -85,6 +85,24 @@ Option B — Vertex AI Agent Builder (opinionated platform)
 
 Recommended immediate approach: Option A for quick wins; optionally graduate to Agent Builder later for advanced flows.
 
+### Comparison table: Cloud Run microservice vs. Agent Builder
+
+| Criteria | Cloud Run microservice (tools) | Vertex AI Agent Builder |
+|---|---|---|
+| Purpose | Deterministic microservice exposing a strict OpenAPI that LLM calls as a tool | High-level agent orchestration with flows, memory, grounding |
+| Control/Portability | High: own code, frameworks, DTOs | Medium: platform-managed orchestration |
+| Orchestration complexity | You build glue (tool schemas, retries, SLAs) | Lower: platform handles flow control and memory |
+| Conversational & memory | DIY (or small memory store) | Built-in conversation state & memory |
+| Data grounding | Call Vertex AI Search or other APIs from your service | Built-in connectors; strong fit with Vertex AI Search |
+| Determinism/DTO contracts | Strong typed DTOs and validation; easy audit | Requires wrappers for strict schemas; more flexible but less rigid |
+| IAM/Security | Cloud Run IAM; service-to-service identity tokens; VPC options | IAM per extension; secure, but more opinionated |
+| Observability | Cloud Logging/Monitoring/Trace you define; SLOs per agent | Conversation logs + Cloud Logging; step traces; less low-level control |
+| Latency/Cost predictability | Very good; microservice overhead only | Good, with extra orchestration overhead |
+| Lock-in risk | Low | Medium/High (platform graphs, extensions) |
+| BFSI/regulatory fit | Strong for deterministic, audit-heavy flows | Good; ensure DTO wrappers/guardrails for compliance |
+| Migration effort | Minimal (lift current code) | Medium (rebuild as agent graph/extension) |
+| When to choose | Deterministic workflows, tool-based invocation, strict SLAs | Conversational/multi-step flows needing memory/grounding |
+
 ---
 
 ## 5) Roadmap (incremental)
