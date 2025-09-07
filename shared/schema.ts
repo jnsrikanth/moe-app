@@ -4,7 +4,7 @@ import { z } from "zod";
 export const expertAgentSchema = z.object({
   id: z.string(),
   name: z.string(),
-  type: z.enum(['credit', 'fraud', 'esg']),
+  type: z.string(),
   status: z.enum(['idle', 'processing', 'overloaded']),
   model: z.string(),
   parameters: z.string(),

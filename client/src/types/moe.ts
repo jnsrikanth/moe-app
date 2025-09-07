@@ -1,7 +1,7 @@
 export interface ExpertAgent {
   id: string;
   name: string;
-  type: 'credit' | 'fraud' | 'esg';
+  type: string;
   status: 'idle' | 'processing' | 'overloaded';
   model: string;
   parameters: string;
@@ -57,4 +57,27 @@ export interface SystemMetrics {
 export interface WebSocketMessage {
   type: string;
   data: any;
+}
+
+export type RouterEngine = 'llm' | 'ml' | 'rules' | 'hybrid';
+
+export interface RouterConfig {
+  engine: RouterEngine;
+  modelLoaded: boolean;
+  modelVersion?: string;
+  latencyP50Ms?: number;
+  latencyP95Ms?: number;
+  costEstimatePerDecision?: number;
+}
+
+export type AgentHealth = 'healthy' | 'unhealthy';
+export interface AgentRegistryEntry {
+  id: string;
+  name: string;
+  capabilities: string[];
+  type?: string;
+  model?: string;
+  routingHints?: string[];
+  lastSeen: number;
+  health: AgentHealth;
 }

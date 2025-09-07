@@ -2,6 +2,10 @@ import Groq from 'groq-sdk';
 import { randomUUID } from 'crypto';
 import { storage } from './storage';
 import { type ExpertAgent, type Request, type SystemLog } from '../shared/schema.js';
+import { RouterOrchestrator } from './router/RouterOrchestrator';
+import { RulesRouterStrategy } from './router/RulesRouterStrategy';
+import { LLMRouterStrategy } from './router/LLMRouterStrategy';
+import { MLPRouterStrategy } from './router/MLPRouterStrategy';
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
@@ -9,7 +13,7 @@ const groq = new Groq({
 
 interface AgentInstance {
   id: string;
-  agentType: 'credit' | 'fraud' | 'esg';
+  agentType: string; // dynamic types from registry
   status: 'idle' | 'processing' | 'overloaded';
   currentLoad: number;
   processingQueue: string[];
@@ -24,10 +28,49 @@ export class RealMoESystem {
   private killSwitch = process.env.GROQ_KILL_SWITCH === '1';
   private minIntervalMs = Number.parseInt(process.env.GROQ_MIN_REQUEST_INTERVAL_MS || '15000', 10);
   private nextAllowedAt = 0;
+  private routerOrchestrator: RouterOrchestrator;
 
   constructor(broadcastFn: (type: string, data: any) => void) {
     this.broadcastUpdate = broadcastFn;
-    this.initializeAgentInstances();
+    // Initialize router orchestrator with strategies
+    const rules = new RulesRouterStrategy();
+    const llm = new LLMRouterStrategy((req: any) => this.makeRoutingDecision(req));
+    const mlp = new MLPRouterStrategy();
+    this.routerOrchestrator = new RouterOrchestrator(
+      {
+        llm: (r: any) => llm.route(r),
+        ml: mlp,
+        rules,
+      },
+      () => process.env.ROUTER_ENGINE || 'llm'
+    );
+  }
+
+  public async init(): Promise<void> {
+    await this.initializeAgentInstances();
+  }
+
+  // Ensure an AgentInstance exists for a given agent id/type and publish initial metrics
+  public async ensureInstanceForAgent(id: string, type?: string): Promise<void> {
+    if (!this.agentInstances.has(id)) {
+      const inferred = String(type || id.split('-')[0] || 'generic');
+      this.agentInstances.set(id, {
+        id,
+        agentType: inferred,
+        status: 'idle',
+        currentLoad: Math.random() * 30 + 10,
+        processingQueue: [],
+        startTime: Date.now(),
+      });
+    }
+    await this.updateAgentMetrics(id);
+  }
+
+  // Sync instances with current registry list
+  public async syncInstancesWithRegistry(registry: Array<{ id: string; type?: string }>): Promise<void> {
+    for (const r of registry) {
+      await this.ensureInstanceForAgent(String(r.id), r.type ? String(r.type) : undefined);
+    }
   }
 
   // Public API: accept a new request, route it, and start processing
@@ -50,29 +93,60 @@ export class RealMoESystem {
     await this.processRequest(newRequest.id, agentIds);
   }
 
-  private initializeAgentInstances() {
-    // Initialize with the same agent structure as the frontend expects
-    const agentConfigs = [
-      { id: 'credit-agent', type: 'credit' as const, threshold: 70 },
-      { id: 'fraud-agent', type: 'fraud' as const, threshold: 80 },
-      { id: 'esg-agent', type: 'esg' as const, threshold: 60 },
-    ];
+  private async initializeAgentInstances() {
+    // Build instances from registry; fallback to defaults if empty
+    try {
+      const registry = await storage.getAgentRegistry();
+      const entries = registry && registry.length > 0 ? registry : [
+        { id: 'credit-agent', type: 'credit', name: 'Credit Check Agent', capabilities: ['credit'], model: AGENT_MODELS.credit },
+        { id: 'fraud-agent', type: 'fraud', name: 'Fraud Detection Agent', capabilities: ['fraud'], model: AGENT_MODELS.fraud },
+        { id: 'esg-agent', type: 'esg', name: 'ESG Analysis Agent', capabilities: ['esg'], model: AGENT_MODELS.esg },
+      ] as any[];
 
-    agentConfigs.forEach(config => {
-      this.agentInstances.set(config.id, {
-        id: config.id,
-        agentType: config.type,
-        status: 'idle',
-        currentLoad: Math.random() * 30 + 10, // Start with low load
-        processingQueue: [],
-        startTime: Date.now(),
+      for (const e of entries) {
+        const id = String(e.id);
+        const type = String(e.type || (id.split('-')[0] || 'generic'));
+        this.agentInstances.set(id, {
+          id,
+          agentType: type,
+          status: 'idle',
+          currentLoad: Math.random() * 30 + 10,
+          processingQueue: [],
+          startTime: Date.now(),
+        });
+      }
+    } catch {
+      // Fallback to defaults if registry failed
+      ['credit-agent', 'fraud-agent', 'esg-agent'].forEach((id) => {
+        const type = id.split('-')[0];
+        this.agentInstances.set(id, {
+          id,
+          agentType: type,
+          status: 'idle',
+          currentLoad: Math.random() * 30 + 10,
+          processingQueue: [],
+          startTime: Date.now(),
+        });
       });
-    });
+    }
   }
 
   // MoE Router - Intelligent request routing
   async routeRequest(request: Request): Promise<string[]> {
-    const routingDecision = await this.makeRoutingDecision(request);
+    const t0 = performance.now?.() ?? Date.now();
+    const routingDecision = await this.routerOrchestrator.route(request);
+    const t1 = performance.now?.() ?? Date.now();
+    const latencyMs = Math.max(0, t1 - t0);
+
+    // Update RouterConfig with simple rolling metrics and cost estimate per engine
+    const engine = (process.env.ROUTER_ENGINE || 'llm').toLowerCase();
+    const currentCfg = await storage.getRouterConfig();
+    const alpha = 0.5; // smoothing factor
+    const p50 = currentCfg.latencyP50Ms != null ? Math.round(alpha * latencyMs + (1 - alpha) * currentCfg.latencyP50Ms) : Math.round(latencyMs);
+    const p95 = currentCfg.latencyP95Ms != null ? Math.round(alpha * latencyMs * 1.5 + (1 - alpha) * currentCfg.latencyP95Ms) : Math.round(latencyMs * 1.5);
+    const cost = engine === 'llm' ? 0.002 : engine === 'ml' ? 0.0001 : engine === 'hybrid' ? 0.0002 : 0;
+    const updatedCfg = await storage.setRouterConfig({ latencyP50Ms: p50, latencyP95Ms: p95, costEstimatePerDecision: cost });
+    this.broadcastUpdate('router_config_updated', updatedCfg);
     
     // Log routing decision
     const routeLog = {
@@ -102,20 +176,20 @@ export class RealMoESystem {
   }
 
   private async makeRoutingDecision(request: Request): Promise<{ selectedAgents: string[]; reasoning: string }> {
-    // Use Groq to make intelligent routing decisions
+    // Use Groq to make intelligent routing decisions with dynamic registry agents
+    const registry = await storage.getAgentRegistry();
+    const availableList = registry.map(r => `- ${r.id}: ${r.capabilities?.join(', ') || r.type || 'general'}`).join('\n')
+      || '- credit-agent: credit\n- fraud-agent: fraud\n- esg-agent: esg';
+    const loads = Array.from(this.agentInstances.values()).map(agent => `- ${agent.id}: ${agent.currentLoad.toFixed(1)}% CPU, ${agent.processingQueue.length} queued`).join('\n');
     const prompt = `You are a MoE (Mixture of Experts) routing agent. Analyze this request and decide which expert agents should handle it.
 
 Request: ${JSON.stringify(request, null, 2)}
 
-Available Expert Agents:
-1. credit-agent: Credit scoring, loan applications, risk assessment
-2. fraud-agent: Fraud detection, transaction analysis, suspicious patterns  
-3. esg-agent: ESG analysis, sustainability scoring, governance evaluation
+Available Expert Agents (id: capabilities/type):
+${availableList}
 
 Current Agent Loads:
-${Array.from(this.agentInstances.values()).map(agent => 
-  `- ${agent.id}: ${agent.currentLoad.toFixed(1)}% CPU, ${agent.processingQueue.length} queued`
-).join('\n')}
+${loads}
 
 Decision Criteria (weights):
 - Agent Specialization: 35%
@@ -255,7 +329,7 @@ Respond with JSON: {"selected_agents": ["agent-id"], "reasoning": "explanation"}
     const request = (await storage.getRequests()).find(r => r.id === requestId);
     if (!request) throw new Error(`Request ${requestId} not found`);
 
-    const agentType = agentId.split('-')[0] as 'credit' | 'fraud' | 'esg';
+    const agentType = agentId.split('-')[0] as string;
     
     // Call the appropriate Groq-powered agent
     switch (agentType) {
@@ -266,7 +340,8 @@ Respond with JSON: {"selected_agents": ["agent-id"], "reasoning": "explanation"}
       case 'esg':
         return await this.processESGRequest(request);
       default:
-        throw new Error(`Unknown agent type: ${agentType}`);
+        // Generic fallback: reuse credit agent template for unknown types
+        return await this.processCreditRequest(request);
     }
   }
 
@@ -389,6 +464,52 @@ Respond in JSON format.`;
     const tokensPerMinute = Math.floor(instance.currentLoad * 10 + Math.random() * 200);
     const responseTime = 1.0 + (instance.currentLoad / 100) * 2.0 + Math.random() * 0.5;
 
+    // Determine model and friendly display label
+    const registry = await storage.getAgentRegistry();
+    const reg = registry.find(r => r.id === agentId);
+    const rawModel = reg?.model || (['credit','fraud','esg'].includes(instance.agentType) ? AGENT_MODELS[instance.agentType as 'credit'|'fraud'|'esg'] : reg?.model);
+
+    const modelLabelFromRaw = (m?: string, type?: string): string => {
+      if (!m) {
+        // Fall back to type-specific friendly labels matching initial defaults
+        if (type === 'credit' || type === 'esg') return 'Groq Llama 3.1 70B';
+        if (type === 'fraud') return 'Groq Mixtral 8x7B';
+        return 'Groq Llama 3.1 8B';
+      }
+      const s = m.toLowerCase();
+      if (s.includes('mixtral') || s.includes('8x7b')) return 'Groq Mixtral 8x7B';
+      if (s.includes('70b')) return 'Groq Llama 3.1 70B';
+      if (s.includes('8b')) return 'Groq Llama 3.1 8B';
+      if (s.includes('llama')) return 'Groq Llama 3.1';
+      return m; // as-is if unknown
+    };
+
+    const friendlyModel = modelLabelFromRaw(rawModel, instance.agentType);
+
+    // Derive parameters/memory/loadThreshold consistent with canonical agents
+    const deriveParameters = (label: string): string => {
+      if (/mixtral/i.test(label)) return '8x7B';
+      const m70 = label.match(/70B/i);
+      if (m70) return '70B';
+      const m8 = label.match(/\b8B\b/i);
+      if (m8) return '8B';
+      return '';
+    };
+
+    const defaultMemoryForType = (type: string): string => {
+      if (type === 'credit') return '2.8GB';
+      if (type === 'fraud') return '2.1GB';
+      if (type === 'esg') return '2.3GB';
+      return '2.0GB';
+    };
+
+    const defaultLoadThreshold = (type: string): number => {
+      if (type === 'credit') return 70;
+      if (type === 'fraud') return 80;
+      if (type === 'esg') return 60;
+      return 70;
+    };
+
     await storage.updateExpertAgent(agentId, {
       status: instance.status,
       cpuUsage: Math.round(instance.currentLoad),
@@ -397,7 +518,10 @@ Respond in JSON format.`;
       responseTime: Math.round(responseTime * 10) / 10,
       isScaling: instance.currentLoad > 85,
       instanceCount: instance.currentLoad > 85 ? 2 : 1,
-      model: AGENT_MODELS[instance.agentType],
+      model: friendlyModel,
+      parameters: deriveParameters(friendlyModel),
+      memoryUsage: defaultMemoryForType(instance.agentType),
+      loadThreshold: defaultLoadThreshold(instance.agentType),
     });
 
     const updatedAgent = (await storage.getExpertAgents()).find(a => a.id === agentId);

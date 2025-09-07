@@ -1,9 +1,12 @@
 import type { Express } from "express";
+import { promises as fs } from 'fs';
+import path from 'path';
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { groqService } from "./groq-service";
 import { RealMoESystem, ROUTER_MODEL, AGENT_MODELS } from "./real-moe-system";
+import { presence } from './registry-presence';
 import { z } from "zod";
 import { randomUUID } from "crypto";
 
@@ -22,6 +25,157 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(normalized);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch expert agents" });
+    }
+  });
+
+  // Simple dataset file upload (base64 content)
+  app.post('/api/datasets/upload', async (req, res) => {
+    try {
+      const { name, contentBase64 } = req.body || {};
+      if (!name || !contentBase64) return res.status(400).json({ error: 'name and contentBase64 are required' });
+      const buffer = Buffer.from(String(contentBase64), 'base64');
+      const dir = path.resolve(process.cwd(), 'uploaded-datasets');
+      await fs.mkdir(dir, { recursive: true });
+      const filePath = path.join(dir, `${Date.now()}-${name}`);
+      await fs.writeFile(filePath, buffer);
+      const meta = await storage.registerDataset({ name: String(name), source: 'upload', records: undefined, sizeBytes: buffer.length, url: filePath });
+      res.json(meta);
+    } catch (e) {
+      console.error('Upload failed', e);
+      res.status(500).json({ error: 'Failed to upload dataset' });
+    }
+  });
+
+  // Dataset registry endpoints (metadata only)
+  app.get('/api/datasets', async (_req, res) => {
+    try {
+      const datasets = await storage.listDatasets();
+      res.json(datasets);
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to list datasets' });
+    }
+  });
+
+  app.post('/api/datasets/register', async (req, res) => {
+    try {
+      const body = req.body || {};
+      if (!body.name || !body.source) return res.status(400).json({ error: 'name and source are required' });
+      const ds = await storage.registerDataset({
+        id: body.id,
+        name: String(body.name),
+        source: body.source,
+        url: body.url,
+        records: body.records,
+        sizeBytes: body.sizeBytes,
+      });
+      res.json(ds);
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to register dataset' });
+    }
+  });
+
+  app.delete('/api/datasets/:id', async (req, res) => {
+    try {
+      const ok = await storage.removeDataset(String(req.params.id));
+      if (!ok) return res.status(404).json({ error: 'Dataset not found' });
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to delete dataset' });
+    }
+  });
+
+  app.delete('/api/agents/:id', async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      const removed = await storage.removeAgent(id);
+      if (!removed) return res.status(404).json({ error: 'Agent not found' });
+      const registry = await storage.getAgentRegistry();
+      broadcastUpdate('registry_updated', registry);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to remove agent' });
+    }
+  });
+
+  // Analytics summary
+  app.get('/api/analytics/summary', async (_req, res) => {
+    try {
+      const [requests, logs] = await Promise.all([
+        storage.getRequests(),
+        storage.getSystemLogs(),
+      ]);
+      const byType: Record<string, number> = {};
+      const byStatus: Record<string, number> = {};
+      for (const r of requests) {
+        byType[r.type] = (byType[r.type] || 0) + 1;
+        byStatus[r.status] = (byStatus[r.status] || 0) + 1;
+      }
+      // Parse approvals/declines from decision logs
+      let approved = 0, declined = 0;
+      for (const l of logs) {
+        if (l.source === 'MoE Decision' && /^FINAL DECISION:/i.test(l.message)) {
+          if (/approved/i.test(l.message)) approved++;
+          if (/declined|rejected/i.test(l.message)) declined++;
+        }
+      }
+      res.json({ byType, byStatus, approvals: approved, declines: declined, total: requests.length });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to compute analytics' });
+    }
+  });
+
+  // Agent Registry APIs
+  app.get('/api/agents', async (_req, res) => {
+    try {
+      const registry = await storage.getAgentRegistry();
+      res.json(registry);
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to fetch agent registry' });
+    }
+  });
+
+  app.post('/api/agents/register', async (req, res) => {
+    try {
+      const payload = req.body || {};
+      const entry = await storage.registerAgent({
+        id: String(payload.id || payload.name || `agent-${Date.now()}`),
+        name: String(payload.name || 'Unnamed Agent'),
+        capabilities: Array.isArray(payload.capabilities) ? payload.capabilities : [],
+        type: payload.type ? String(payload.type) : undefined,
+        model: payload.model ? String(payload.model) : undefined,
+        routingHints: Array.isArray(payload.routingHints) ? payload.routingHints.map(String) : undefined,
+        lastSeen: Date.now(),
+        health: 'healthy',
+      });
+      // Ensure runtime instance exists and publish initial metrics for this agent
+      await realMoESystem.ensureInstanceForAgent(entry.id, entry.type);
+      const registry = await storage.getAgentRegistry();
+      broadcastUpdate('registry_updated', registry);
+      res.json(entry);
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to register agent' });
+    }
+  });
+
+  app.post('/api/agents/heartbeat', async (req, res) => {
+    try {
+      const { id, capabilities, type, model, routingHints } = req.body || {};
+      if (!id) return res.status(400).json({ error: 'id is required' });
+      const updated = await storage.heartbeatAgent(String(id), { 
+        capabilities, 
+        type: type ? String(type) : undefined, 
+        model: model ? String(model) : undefined, 
+        routingHints: Array.isArray(routingHints) ? routingHints.map(String) : undefined,
+      });
+      if (!updated) return res.status(404).json({ error: 'Agent not found' });
+      // Redis presence heartbeat (TTL configurable)
+      const ttlSec = Number.parseInt(process.env.REGISTRY_TTL_SEC || '30', 10);
+      await presence.heartbeat({ id: String(id), capabilities, type: type ? String(type) : undefined, model: model ? String(model) : undefined, routingHints: Array.isArray(routingHints) ? routingHints.map(String) : undefined }, ttlSec);
+      const registry = await storage.getAgentRegistry();
+      broadcastUpdate('registry_updated', registry);
+      res.json(updated);
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to heartbeat agent' });
     }
   });
 
@@ -64,7 +218,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/router-metrics", async (req, res) => {
+  app.get("/api/router-metrics", async (_req, res) => {
     try {
       const metrics = await storage.getRouterMetrics();
       res.json(metrics);
@@ -91,6 +245,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Router runtime configuration (dashboard toggle: LLM vs MLP vs Rules)
+  app.get("/api/router-config", async (_req, res) => {
+    try {
+      const cfg = await storage.getRouterConfig();
+      res.json(cfg);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch router config" });
+    }
+  });
+
+  app.post("/api/router-config", async (req, res) => {
+    try {
+      const engine = String((req.body?.engine ?? '')).toLowerCase();
+      if (!['llm', 'ml', 'rules', 'hybrid'].includes(engine)) {
+        res.status(400).json({ error: 'Invalid engine. Use one of: llm, ml, rules, hybrid' });
+        return;
+      }
+      // Update engine and set model status hints for dashboard
+      const modelLoaded = engine === 'ml' || engine === 'hybrid' ? true : false;
+      const modelVersion = engine === 'ml' || engine === 'hybrid' ? 'mlp-stub-0.1' : undefined;
+      const updated = await storage.setRouterConfig({ engine: engine as any, modelLoaded, modelVersion });
+      // Broadcast to all clients so the UI can update immediately
+      broadcastUpdate('router_config_updated', updated);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update router config" });
+    }
+  });
+
   // Models endpoint to expose actual router/agent model labels
   app.get("/api/models", async (req, res) => {
     try {
@@ -113,6 +296,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(requests);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch requests" });
+    }
+  });
+
+  // Generate a request on-demand for E2E testing
+  app.post('/api/requests/generate', async (req, res) => {
+    try {
+      const body = req.body || {};
+      const type = String(body.type || 'Loan Application - Personal');
+      const priority = (['low', 'medium', 'high'] as const).includes(body.priority) ? body.priority : 'medium';
+      const requestId = `REQ-${Date.now()}`;
+      const newRequest = {
+        id: requestId,
+        type,
+        priority,
+        status: 'pending' as const,
+        timestamp: new Date().toISOString(),
+        assignedAgents: [],
+      };
+      await realMoESystem.handleNewRequest(newRequest);
+      res.json({ ok: true, id: requestId, type, priority });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to generate request' });
     }
   });
 
@@ -144,9 +349,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Health check endpoint for Railway
-  app.get("/health", (req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  // Health check endpoint for Railway + router status
+  app.get("/health", async (req, res) => {
+    try {
+      const cfg = await storage.getRouterConfig();
+      res.json({ status: "ok", timestamp: new Date().toISOString(), router: cfg });
+    } catch (e) {
+      res.json({ status: "ok", timestamp: new Date().toISOString() });
+    }
   });
 
   // Test credit analysis with real Groq
@@ -196,6 +406,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   const realMoESystem = new RealMoESystem(broadcastUpdate);
+  await realMoESystem.init();
+
+  // Keep agent registry healthy and reconciled with expert agents
+  const reconcileAndHeartbeatAgents = async () => {
+    try {
+      // Ensure default expert agents exist in registry
+      const [experts, registry] = await Promise.all([
+        storage.getExpertAgents(),
+        storage.getAgentRegistry(),
+      ]);
+
+      const registeredIds = new Set(registry.map(r => r.id));
+      for (const a of experts) {
+        if (!registeredIds.has(a.id)) {
+          await storage.registerAgent({
+            id: a.id,
+            name: a.name,
+            capabilities: [a.type],
+            type: a.type,
+            model: a.model,
+            lastSeen: Date.now(),
+            health: 'healthy',
+          });
+        }
+      }
+
+      // Ensure all registry agents have runtime instances and initial metrics
+      await realMoESystem.syncInstancesWithRegistry(registry);
+
+      // Heartbeat all agents to keep them healthy in demos and update Redis presence
+      const updated = [] as any[];
+      const nowRegistry = await storage.getAgentRegistry();
+      for (const r of nowRegistry) {
+        const u = await storage.heartbeatAgent(r.id);
+        if (u) updated.push(u);
+        const ttlSec = Number.parseInt(process.env.REGISTRY_TTL_SEC || '30', 10);
+        await presence.heartbeat({ id: r.id, type: r.type, capabilities: r.capabilities, model: r.model, routingHints: r.routingHints }, ttlSec);
+      }
+
+      // Broadcast only if there are entries
+      if (updated.length > 0) {
+        const latest = await storage.getAgentRegistry();
+        broadcastUpdate('registry_updated', latest);
+      }
+    } catch (e) {
+      console.error('Agent heartbeat loop error:', e);
+    }
+  };
 
   wss.on('connection', (ws: WebSocket) => {
     connectedClients.add(ws);
@@ -216,12 +474,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   async function sendInitialData(ws: WebSocket) {
     if (ws.readyState === WebSocket.OPEN) {
       try {
-        const [agents, routerMetrics, systemMetrics, logs, requests] = await Promise.all([
+        const [agents, routerMetrics, systemMetrics, logs, requests, routerConfig, registry] = await Promise.all([
           storage.getExpertAgents(),
           storage.getRouterMetrics(),
           storage.getSystemMetrics(),
           storage.getSystemLogs(),
-          storage.getRequests()
+          storage.getRequests(),
+          storage.getRouterConfig(),
+          storage.getAgentRegistry(),
         ]);
 
         // Normalize agent model labels from single source of truth
@@ -238,6 +498,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             systemMetrics,
             systemLogs: logs,
             requests,
+            routerConfig,
+            registry,
             models: {
               routerModel: ROUTER_MODEL,
               agents: AGENT_MODELS,
@@ -326,6 +588,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   } else {
     console.log('🛑 Background MoE processing DISABLED (set GROQ_ENABLE_BACKGROUND=1 to enable).');
   }
+
+  // Always keep registry healthy in dev/demo: run heartbeat reconciliation every 10s
+  await reconcileAndHeartbeatAgents();
+  setInterval(reconcileAndHeartbeatAgents, 10000);
 
   return httpServer;
 }
