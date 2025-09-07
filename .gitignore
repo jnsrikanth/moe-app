@@ -8,9 +8,17 @@ vite.config.ts.*
 # Environment variables
 .env
 .env.local
+.env.development
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Local data and artifacts
+/data/
+uploaded-datasets/
+*.db
+*.db-shm
+*.db-wal
 
 # Development files
 .dev-server.pid

@@ -4,7 +4,7 @@ import path from 'path';
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { groqService } from "./groq-service";
+import { aiService } from "./ai-service";
 import { RealMoESystem, ROUTER_MODEL, AGENT_MODELS } from "./real-moe-system";
 import { presence } from './registry-presence';
 import { z } from "zod";
@@ -324,23 +324,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Test Groq integration
   app.get("/api/test-groq", async (req, res) => {
     try {
-      console.log("Testing Groq connection...");
-      const isConnected = await groqService.testConnection();
+      console.log("Testing Vertex AI connection...");
+      const isConnected = await aiService.testConnection();
       
       if (isConnected) {
         res.json({ 
           status: "success", 
-          message: "Groq connection successful!",
+          message: "Vertex AI connection successful!",
           timestamp: new Date().toISOString()
         });
       } else {
         res.status(500).json({ 
           status: "error", 
-          message: "Groq connection failed" 
+          message: "Vertex AI connection failed" 
         });
       }
     } catch (error) {
-      console.error("Groq test error:", error);
+      console.error("Vertex test error:", error);
       const msg = error instanceof Error ? error.message : String(error);
       res.status(500).json({ 
         status: "error", 
@@ -372,8 +372,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         loan_purpose: "Home improvement"
       };
 
-      console.log("Running real credit analysis with Groq...");
-      const result = await groqService.analyzeCreditApplication(sampleApplication);
+      console.log("Running credit analysis with Vertex AI...");
+      const result = await aiService.analyzeCreditApplication(sampleApplication);
       
       res.json({
         status: "success",

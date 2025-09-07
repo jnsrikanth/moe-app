@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: moe-app
+  labels:
+    app: moe-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: moe-app
+  template:
+    metadata:
+      labels:
+        app: moe-app
+      annotations:
+        # Enable Workload Identity if using GKE Autopilot + WI
+        iam.gke.io/gcp-service-account: moe-app-sa@PROJECT_ID.iam.gserviceaccount.com
+    spec:
+      containers:
+        - name: server
+          image: REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/moe-app:TAG
+          ports:
+            - containerPort: 8080
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "8080"
+            - name: GCP_PROJECT_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['cloud.google.com/project-id']
+            - name: GCP_LOCATION
+              value: "us-central1"
+            - name: ROUTER_MODEL
+              value: "gemini-1.5-flash"
+            - name: AGENT_MODEL_CREDIT
+              value: "gemini-1.5-flash"
+            - name: AGENT_MODEL_FRAUD
+              value: "gemini-1.5-flash"
+            - name: AGENT_MODEL_ESG
+              value: "gemini-1.5-flash"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: moe-app
+  labels:
+    app: moe-app
+spec:
+  type: ClusterIP
+  selector:
+    app: moe-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: moe-app
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.allow-http: "false"
+    networking.gke.io/managed-certificates: moe-app-cert
+spec:
+  defaultBackend:
+    service:
+      name: moe-app
+      port:
+        number: 80
+

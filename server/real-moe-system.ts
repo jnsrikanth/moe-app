@@ -1,4 +1,3 @@
-import Groq from 'groq-sdk';
 import { randomUUID } from 'crypto';
 import { storage } from './storage';
 import { type ExpertAgent, type Request, type SystemLog } from '../shared/schema.js';
@@ -6,10 +5,7 @@ import { RouterOrchestrator } from './router/RouterOrchestrator';
 import { RulesRouterStrategy } from './router/RulesRouterStrategy';
 import { LLMRouterStrategy } from './router/LLMRouterStrategy';
 import { MLPRouterStrategy } from './router/MLPRouterStrategy';
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+import { generateText } from './vertex';
 
 interface AgentInstance {
   id: string;
@@ -206,16 +202,9 @@ Respond with JSON: {"selected_agents": ["agent-id"], "reasoning": "explanation"}
         };
       }
 
-      const response = await this.withRateLimit(() =>
-        groq.chat.completions.create({
-          messages: [{ role: 'user', content: prompt }],
-          model: ROUTER_MODEL, // Using stable 8B model
-          max_tokens: 300,
-          temperature: 0.3,
-        })
+      const content = await this.withRateLimit(() =>
+        generateText({ model: ROUTER_MODEL, prompt })
       );
-
-      const content = response.choices[0]?.message?.content || '';
       
       try {
         const decision = JSON.parse(content);
@@ -366,18 +355,13 @@ Respond in JSON format.`;
       };
     }
 
-    const response = await this.withRateLimit(() =>
-      groq.chat.completions.create({
-        messages: [{ role: 'user', content: prompt }],
-        model: AGENT_MODELS.credit, // Credit agent model
-        max_tokens: 400,
-        temperature: 0.3,
-      })
+    const content = await this.withRateLimit(() =>
+      generateText({ model: AGENT_MODELS.credit, prompt })
     );
 
     return {
       agentType: 'credit',
-      analysis: response.choices[0]?.message?.content || 'Credit analysis completed',
+      analysis: content || 'Credit analysis completed',
       processingTime: Date.now(),
     };
   }
@@ -403,18 +387,13 @@ Respond in JSON format.`;
       };
     }
 
-    const response = await this.withRateLimit(() =>
-      groq.chat.completions.create({
-        messages: [{ role: 'user', content: prompt }],
-        model: AGENT_MODELS.fraud, // Fraud agent model
-        max_tokens: 400,
-        temperature: 0.2,
-      })
+    const content = await this.withRateLimit(() =>
+      generateText({ model: AGENT_MODELS.fraud, prompt })
     );
 
     return {
       agentType: 'fraud',
-      analysis: response.choices[0]?.message?.content || 'Fraud analysis completed',
+      analysis: content || 'Fraud analysis completed',
       processingTime: Date.now(),
     };
   }
@@ -441,18 +420,13 @@ Respond in JSON format.`;
       };
     }
 
-    const response = await this.withRateLimit(() =>
-      groq.chat.completions.create({
-        messages: [{ role: 'user', content: prompt }],
-        model: AGENT_MODELS.esg, // ESG agent model
-        max_tokens: 500,
-        temperature: 0.4,
-      })
+    const content = await this.withRateLimit(() =>
+      generateText({ model: AGENT_MODELS.esg, prompt })
     );
 
     return {
       agentType: 'esg',
-      analysis: response.choices[0]?.message?.content || 'ESG analysis completed',
+      analysis: content || 'ESG analysis completed',
       processingTime: Date.now(),
     };
   }
@@ -719,9 +693,9 @@ Respond in JSON format.`;
 export let realMoESystem: RealMoESystem;
 
 // Exported model constants so the API and UI can reflect real-time labels
-export const ROUTER_MODEL = 'llama3-8b-8192';
+export const ROUTER_MODEL = process.env.ROUTER_MODEL || 'gemini-1.5-flash';
 export const AGENT_MODELS: Record<'credit' | 'fraud' | 'esg', string> = {
-  credit: 'llama3-8b-8192',
-  fraud: 'llama3-8b-8192',
-  esg: 'llama3-8b-8192',
+  credit: process.env.AGENT_MODEL_CREDIT || 'gemini-1.5-flash',
+  fraud: process.env.AGENT_MODEL_FRAUD || 'gemini-1.5-flash',
+  esg: process.env.AGENT_MODEL_ESG || 'gemini-1.5-flash',
 };
