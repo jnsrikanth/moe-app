@@ -20,12 +20,12 @@ graph LR
     Router["MoE App Router"]
     CreditSvc["Credit Agent Service"]
   end
-  VERTEX["Vertex AI · Gemini 2.5 Flash Lite"]
+  Vertex["Vertex AI - Gemini 2.5 Flash Lite"]
 
-  Browser -->|REST + WebSocket| Router
-  Router -->|Secure HTTP (ID Token)| CreditSvc
-  Router -->|LLM routing decisions (optional)| VERTEX
-  CreditSvc -->|LLM for credit analysis| VERTEX
+  Browser --> Router
+  Router --> CreditSvc
+  Router -.-> Vertex
+  CreditSvc --> Vertex
 ```
 
 Request flow (LLM or Local engine):
