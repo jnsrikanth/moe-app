@@ -15,21 +15,17 @@ This document explains how the Credit Agent was migrated from an in‑process ha
 
 ```mermaid
 graph LR
-  Browser[User Browser];
-  subgraph CloudRun[Google Cloud Run];
-    Router[MoE App (Router)];
-    CreditSvc[Credit Agent Service];
-  end;
-  VERTEX[Vertex AI<br/>Gemini 2.5 Flash Lite];
+  Browser["User Browser"]
+  subgraph CloudRun [Google Cloud Run]
+    Router["MoE App Router"]
+    CreditSvc["Credit Agent Service"]
+  end
+  VERTEX["Vertex AI · Gemini 2.5 Flash Lite"]
 
-  Browser -->|REST + WebSocket| Router;
-  Router -->|Secure HTTP (ID Token)| CreditSvc;
-  Router -->|Optional LLM routing decisions| VERTEX;
-  CreditSvc -->|LLM for credit analysis| VERTEX;
-
-  style Router fill:#b3d4fc,stroke:#1e88e5,stroke-width:1px;
-  style CreditSvc fill:#b3d4fc,stroke:#1e88e5,stroke-width:1px;
-  style VERTEX fill:#fce4b3,stroke:#f9a825,stroke-width:1px;
+  Browser -->|REST + WebSocket| Router
+  Router -->|Secure HTTP (ID Token)| CreditSvc
+  Router -->|LLM routing decisions (optional)| VERTEX
+  CreditSvc -->|LLM for credit analysis| VERTEX
 ```
 
 Request flow (LLM or Local engine):
