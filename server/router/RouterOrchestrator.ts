@@ -12,7 +12,9 @@ export class RouterOrchestrator {
   ) {}
 
   async route(request: any): Promise<RoutingDecision> {
-    const engine = this.getEngine().toLowerCase();
+    // Prefer dynamic config from storage; fall back to environment resolver
+    const cfg = await storage.getRouterConfig().catch(() => null as any);
+    const engine = String((cfg?.engine ?? this.getEngine() ?? 'llm')).toLowerCase();
 
     let decision: RoutingDecision | null = null;
 

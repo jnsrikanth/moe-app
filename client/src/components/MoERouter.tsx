@@ -1,12 +1,30 @@
-import { RouterMetrics, SystemLog } from "@/types/moe";
+import { RouterMetrics, SystemLog, RouterEngine, RouterConfig } from "@/types/moe";
 import { useEffect, useRef } from "react";
 
 interface MoERouterProps {
   metrics: RouterMetrics;
   realtimeLogs: SystemLog[];
+  routerModelLabel?: string;
+  engine?: RouterEngine;
+  routerConfig?: RouterConfig | null;
 }
 
-export function MoERouter({ metrics, realtimeLogs }: MoERouterProps) {
+function friendlyModelLabel(raw?: string): string {
+  if (!raw) return 'Unknown Model';
+  const s = raw.toLowerCase();
+  if (s.includes('gemini')) {
+    if (s.includes('2.5') && s.includes('flash') && s.includes('lite')) return 'Google Gemini 2.5 Flash Lite';
+    if (s.includes('2.5') && s.includes('flash')) return 'Google Gemini 2.5 Flash';
+    if (s.includes('2.5') && s.includes('pro')) return 'Google Gemini 2.5 Pro';
+    if (s.includes('1.5') && s.includes('flash')) return 'Google Gemini 1.5 Flash';
+    if (s.includes('1.5') && s.includes('pro')) return 'Google Gemini 1.5 Pro';
+    if (s.includes('pro')) return 'Google Gemini Pro';
+    return 'Google Gemini';
+  }
+  return raw;
+}
+
+export function MoERouter({ metrics, realtimeLogs, routerModelLabel, engine, routerConfig }: MoERouterProps) {
   const logContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,7 +57,22 @@ export function MoERouter({ metrics, realtimeLogs }: MoERouterProps) {
       <h3 className="text-xl font-semibold mb-4 flex items-center text-white">
         <div className="w-3 h-3 bg-blue-400 rounded-full mr-2"></div>
         MoE Routing Agent
-        <span className="ml-2 px-2 py-1 bg-green-500 text-black text-xs rounded font-bold">Phi-3 Mini (3.8B)</span>
+        <span className={`ml-2 px-2 py-1 text-black text-xs rounded font-bold ${routerConfig?.modelLoaded ? 'bg-green-500' : 'bg-yellow-500'}`}>
+          {(() => {
+            const eng = (engine || 'llm').toUpperCase();
+            if ((engine || 'llm') === 'ml') {
+              const ver = routerConfig?.modelLoaded ? (routerConfig?.modelVersion || 'local') : 'local';
+              return `${eng} — Local MLP (${ver})`;
+            }
+            if ((engine || 'llm') === 'rules') {
+              return `${eng} — Rules Engine`;
+            }
+            if ((engine || 'llm') === 'hybrid') {
+              return `${eng} — ${friendlyModelLabel(routerModelLabel)}`;
+            }
+            return `${eng} — ${friendlyModelLabel(routerModelLabel)}`;
+          })()}
+        </span>
       </h3>
 
       {/* Real-Time Dialog */}

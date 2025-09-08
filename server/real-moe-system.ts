@@ -335,6 +335,33 @@ Respond with JSON: {"selected_agents": ["agent-id"], "reasoning": "explanation"}
   }
 
   private async processCreditRequest(request: Request): Promise<any> {
+    const creditAgentUrl = process.env.CREDIT_AGENT_URL;
+    if (creditAgentUrl) {
+      try {
+        const { postWithIdToken } = await import('./gcp/idtoken');
+        const payload = {
+          applicant_name: 'John Doe',
+          annual_income: 75000,
+          credit_history_length: 8,
+          existing_debt: 15000,
+          employment_status: 'Full-time',
+          loan_amount: 25000,
+          loan_purpose: request.type,
+          metadata: { requestId: request.id }
+        };
+        const resp = await postWithIdToken(creditAgentUrl.replace(/\/$/, '') + '/v1/credit/analyze', payload);
+        if (resp.status >= 200 && resp.status < 300) {
+          return {
+            agentType: 'credit',
+            analysis: JSON.stringify(resp.data),
+            processingTime: Date.now(),
+          };
+        }
+      } catch (e) {
+        // fall through to LLM path
+      }
+    }
+
     const prompt = `You are a Credit Check Expert Agent. Analyze this request for credit risk assessment.
 
 Request: ${JSON.stringify(request, null, 2)}
@@ -693,9 +720,9 @@ Respond in JSON format.`;
 export let realMoESystem: RealMoESystem;
 
 // Exported model constants so the API and UI can reflect real-time labels
-export const ROUTER_MODEL = process.env.ROUTER_MODEL || 'gemini-1.5-flash';
+export const ROUTER_MODEL = process.env.ROUTER_MODEL || 'gemini-2.5-flash-lite';
 export const AGENT_MODELS: Record<'credit' | 'fraud' | 'esg', string> = {
-  credit: process.env.AGENT_MODEL_CREDIT || 'gemini-1.5-flash',
-  fraud: process.env.AGENT_MODEL_FRAUD || 'gemini-1.5-flash',
-  esg: process.env.AGENT_MODEL_ESG || 'gemini-1.5-flash',
+  credit: process.env.AGENT_MODEL_CREDIT || 'gemini-2.5-flash-lite',
+  fraud: process.env.AGENT_MODEL_FRAUD || 'gemini-2.5-flash-lite',
+  esg: process.env.AGENT_MODEL_ESG || 'gemini-2.5-flash-lite',
 };

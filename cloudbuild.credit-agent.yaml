@@ -1,0 +1,17 @@
+substitutions:
+  _REGION: us-central1
+  _REPOSITORY: moe-app
+  _IMAGE: credit-agent
+  _TAG: manual
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Build credit-agent'
+    args: ['build','-f','services/credit-agent/Dockerfile','-t','${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:${_TAG}','.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push credit-agent'
+    args: ['push','${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:${_TAG}']
+
+images:
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:${_TAG}'

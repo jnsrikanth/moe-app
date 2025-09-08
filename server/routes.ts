@@ -262,10 +262,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.status(400).json({ error: 'Invalid engine. Use one of: llm, ml, rules, hybrid' });
         return;
       }
-      // Update engine and set model status hints for dashboard
-      const modelLoaded = engine === 'ml' || engine === 'hybrid' ? true : false;
-      const modelVersion = engine === 'ml' || engine === 'hybrid' ? 'mlp-stub-0.1' : undefined;
+
+      // Determine readiness and version by engine
+      let modelLoaded = false;
+      let modelVersion: string | undefined = undefined;
+
+      if (engine === 'llm') {
+        try {
+          const ok = await aiService.testConnection();
+          modelLoaded = !!ok;
+          modelVersion = ROUTER_MODEL;
+        } catch {
+          modelLoaded = false;
+          modelVersion = ROUTER_MODEL;
+        }
+      } else if (engine === 'ml') {
+        // Reflect local MLP readiness; if ONNX loaded, MLPRouterStrategy updates storage.modelLoaded/modelVersion
+        const current = await storage.getRouterConfig().catch(() => null as any);
+        modelLoaded = !!current?.modelLoaded;
+        modelVersion = current?.modelVersion || 'mlp-local';
+      } else if (engine === 'rules') {
+        modelLoaded = true; // rules engine is always ready
+        modelVersion = 'rules-1.0';
+      } else if (engine === 'hybrid') {
+        // Hybrid considered ready if either LLM connectivity works or local MLP is available
+        let llmOk = false;
+        try { llmOk = await aiService.testConnection(); } catch {}
+        const current = await storage.getRouterConfig().catch(() => null as any);
+        const mlOk = !!current?.modelLoaded;
+        modelLoaded = llmOk || mlOk;
+        modelVersion = `${ROUTER_MODEL}+${current?.modelVersion || 'mlp'}`;
+      }
+
       const updated = await storage.setRouterConfig({ engine: engine as any, modelLoaded, modelVersion });
+
+      // Ensure runtime router reads the new engine immediately
+      process.env.ROUTER_ENGINE = engine.toUpperCase();
+
       // Broadcast to all clients so the UI can update immediately
       broadcastUpdate('router_config_updated', updated);
       res.json(updated);
@@ -277,8 +310,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Models endpoint to expose actual router/agent model labels
   app.get("/api/models", async (req, res) => {
     try {
+      const cfg = await storage.getRouterConfig();
+      let routerModel = ROUTER_MODEL;
+      const engine = String(cfg?.engine || "llm").toLowerCase();
+      if (engine === 'ml') {
+        routerModel = cfg?.modelVersion || 'mlp-local';
+      } else if (engine === 'rules') {
+        routerModel = 'rules-engine';
+      } else if (engine === 'hybrid') {
+        routerModel = `${ROUTER_MODEL}+mlp`;
+      }
       res.json({
-        routerModel: ROUTER_MODEL,
+        routerModel,
         agents: {
           credit: AGENT_MODELS.credit,
           fraud: AGENT_MODELS.fraud,

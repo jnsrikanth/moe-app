@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@google-cloud/vertexai": "^1.1.0",
+    "google-auth-library": "^9.14.1",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@neondatabase/serverless": "^0.10.4",

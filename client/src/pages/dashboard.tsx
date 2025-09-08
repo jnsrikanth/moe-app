@@ -368,6 +368,9 @@ export default function Dashboard() {
             <MoERouter
               metrics={routerMetrics}
               realtimeLogs={systemLogs}
+              routerModelLabel={models?.routerModel}
+              engine={(routerConfig?.engine || 'llm') as RouterEngine}
+              routerConfig={routerConfig}
             />
           </div>
 

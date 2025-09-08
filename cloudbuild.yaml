@@ -6,6 +6,7 @@ substitutions:
   _REGION: us-central1
   _REPOSITORY: moe-app
   _IMAGE: moe-app
+  _TAG: manual
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -13,12 +14,12 @@ options:
 steps:
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Build image'
-    args: ['build','-t','${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:$SHORT_SHA','.']
+    args: ['build','-t','${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:${_TAG}','.']
 
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Push image'
-    args: ['push','${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:$SHORT_SHA']
+    args: ['push','${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:${_TAG}']
 
 images:
-  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:$SHORT_SHA'
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:${_TAG}'
 
