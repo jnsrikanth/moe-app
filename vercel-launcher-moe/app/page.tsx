@@ -1,5 +1,5 @@
 "use client";
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type InvItem = { id: string; name: string; location?: string; url?: string; kind: string; status: 'ACTIVE'|'INACTIVE'|'UNKNOWN'; details?: Record<string, any> };
 
@@ -8,6 +8,7 @@ export default function Home() {
   const [overall, setOverall] = useState<'ACTIVE'|'INACTIVE'|null>(null);
   const [items, setItems] = useState<InvItem[]>([]);
   const [costRows, setCostRows] = useState<{ period: string; service: string; cost_usd: number }[]>([]);
+  const [gran, setGran] = useState<'day'|'week'|'month'>('month');
   const [error, setError] = useState<string | null>(null);
 
   async function start() {
@@ -36,7 +37,7 @@ export default function Home() {
     try {
       const [res, cost] = await Promise.all([
         fetch('/api/resources', { cache: 'no-store' }).then(r => r.json()),
-        fetch('/api/cost?granularity=month', { cache: 'no-store' }).then(r => r.json()),
+        fetch(`/api/cost?granularity=${gran}`, { cache: 'no-store' }).then(r => r.json()),
       ]);
       setOverall(res?.overallStatus || null);
       setItems(Array.isArray(res?.items) ? res.items : []);
@@ -46,11 +47,11 @@ export default function Home() {
     }
   }
 
-  // Load on mount
-  if (overall === null && typeof window !== 'undefined') {
-    // lightweight trigger
+  // Load on mount and when granularity changes
+  useEffect(() => {
     void refresh();
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gran]);
 
   return (
     <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#0b1220', color: '#fff' }}>
@@ -68,7 +69,7 @@ export default function Home() {
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
           {(overall === 'ACTIVE') ? (
             <button onClick={async () => {
               setLaunching(true);
@@ -86,6 +87,12 @@ export default function Home() {
             </button>
           )}
           <button onClick={refresh} style={{ padding: '10px 14px', fontWeight: 600, background: '#111827', color: '#fff', border: '1px solid #374151', borderRadius: 8 }}>Refresh</button>
+          <div style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ opacity: 0.8 }}>Cost view:</span>
+            <button onClick={() => setGran('day')} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', background: gran==='day' ? '#1f2937' : '#0b1220', color: '#fff' }}>Daily</button>
+            <button onClick={() => setGran('week')} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', background: gran==='week' ? '#1f2937' : '#0b1220', color: '#fff' }}>Weekly</button>
+            <button onClick={() => setGran('month')} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', background: gran==='month' ? '#1f2937' : '#0b1220', color: '#fff' }}>Monthly</button>
+          </div>
         </div>
 
         {error && <p style={{ color: '#f87171', marginTop: 12 }}>{error}</p>}
@@ -101,6 +108,8 @@ export default function Home() {
                   <th style={{ borderBottom: '1px solid #374151', padding: 8, textAlign: 'left' }}>Kind</th>
                   <th style={{ borderBottom: '1px solid #374151', padding: 8, textAlign: 'left' }}>Name</th>
                   <th style={{ borderBottom: '1px solid #374151', padding: 8, textAlign: 'left' }}>Location</th>
+                  <th style={{ borderBottom: '1px solid #374151', padding: 8, textAlign: 'left' }}>Runtime</th>
+                  <th style={{ borderBottom: '1px solid #374151', padding: 8, textAlign: 'right' }}>Requests (5m)</th>
                   <th style={{ borderBottom: '1px solid #374151', padding: 8, textAlign: 'left' }}>Details</th>
                 </tr>
               </thead>
@@ -115,6 +124,13 @@ export default function Home() {
                       {it.url ? <a href={it.url} target="_blank" rel="noreferrer" style={{ color: '#60a5fa' }}>{it.name}</a> : it.name}
                     </td>
                     <td style={{ padding: 8 }}>{it.location || '—'}</td>
+                    <td style={{ padding: 8 }}>
+                      {(it.details?.runtimeStatus === 'ACTIVE') && <span style={{ color: '#22c55e' }}>Active</span>}
+                      {(it.details?.runtimeStatus === 'STANDBY') && <span style={{ color: '#f59e0b' }}>Standby</span>}
+                      {(it.details?.runtimeStatus === 'OFFLINE') && <span style={{ color: '#ef4444' }}>Offline</span>}
+                      {(!it.details?.runtimeStatus) && <span style={{ opacity: 0.7 }}>—</span>}
+                    </td>
+                    <td style={{ padding: 8, textAlign: 'right' }}>{typeof it.details?.requests5m === 'number' ? it.details.requests5m : '—'}</td>
                     <td style={{ padding: 8, fontSize: 12, opacity: 0.8 }}>{it.details ? JSON.stringify(it.details) : '—'}</td>
                   </tr>
                 ))}
