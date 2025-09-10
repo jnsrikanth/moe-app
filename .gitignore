@@ -20,5 +20,11 @@ uploaded-datasets/
 *.db-shm
 *.db-wal
 
+# Vercel launcher app artifacts
+/vercel-launcher-moe/node_modules
+/vercel-launcher-moe/.next
+/vercel-launcher-moe/out
+/vercel-launcher-moe/.env*
+
 # Development files
 .dev-server.pid
