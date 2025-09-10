@@ -524,6 +524,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Detailed resources inventory
+  app.get('/api/orchestrator/resources', requireApiKey, async (req, res) => {
+    try {
+      if (!ORCH_PROJECT_ID) return res.status(500).json({ error: 'ORCH_PROJECT_ID not set' });
+      const regions = (process.env.ORCH_REGIONS || ORCH_LOCATION || 'us-central1').split(',').map(s=>s.trim()).filter(Boolean);
+      const { fetchInventory } = await import('./gcp/gcpInventory');
+      const inv = await fetchInventory({ projectId: ORCH_PROJECT_ID, regions });
+      res.json(inv);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to get resources' });
+    }
+  });
+
+  // Cost breakdown via BigQuery billing export
+  app.get('/api/orchestrator/cost', requireApiKey, async (req, res) => {
+    try {
+      if (!ORCH_PROJECT_ID) return res.status(500).json({ error: 'ORCH_PROJECT_ID not set' });
+      const BILLING_PROJECT_ID = process.env.BILLING_PROJECT_ID || process.env.BILLING_EXPORT_PROJECT_ID;
+      const BILLING_DATASET = process.env.BILLING_DATASET || process.env.BILLING_EXPORT_DATASET;
+      const BILLING_TABLE = process.env.BILLING_TABLE || process.env.BILLING_EXPORT_TABLE;
+      if (!BILLING_PROJECT_ID || !BILLING_DATASET || !BILLING_TABLE) {
+        return res.status(200).json({ configured: false, message: 'Billing export not configured', rows: [] });
+      }
+      const gran = (String(req.query.granularity || 'all').toLowerCase() as any);
+      const start = req.query.start ? String(req.query.start) : undefined;
+      const end = req.query.end ? String(req.query.end) : undefined;
+      const { fetchCosts } = await import('./gcp/billing');
+      const out = await fetchCosts({
+        billingProjectId: BILLING_PROJECT_ID,
+        dataset: BILLING_DATASET,
+        table: BILLING_TABLE,
+        projectIdFilter: ORCH_PROJECT_ID,
+        granularity: gran,
+        start,
+        end,
+      });
+      res.json({ configured: true, ...out });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to get cost data' });
+    }
+  });
+
   // WebSocket Server for real-time updates
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
