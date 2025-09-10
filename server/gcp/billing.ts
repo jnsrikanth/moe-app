@@ -16,12 +16,23 @@ export async function fetchCosts(opts: { billingProjectId: string; dataset: stri
                      gran === 'month' ? 'FORMAT_DATE("%Y-%m", DATE(usage_start_time))' :
                      '"ALL_TIME"';
 
+  // Compute net cost including credits (if present). Works for both standard and detailed export.
   const sql = `
-    SELECT ${periodExpr} AS period,
-           service.description AS service,
-           ROUND(SUM(cost), 2) AS cost_usd
-    FROM \`${billingProjectId}.${dataset}.${table}\`
-    WHERE ${where.join(' AND ')}
+    WITH rows AS (
+      SELECT
+        ${periodExpr} AS period,
+        service.description AS service,
+        -- Sum credits in-row if present (repeated credits field)
+        (SELECT SUM(c.amount) FROM UNNEST(credits) c) AS credit_amount,
+        cost
+      FROM \`${billingProjectId}.${dataset}.${table}\`
+      WHERE ${where.join(' AND ')}
+    )
+    SELECT
+      period,
+      service,
+      ROUND(SUM(COALESCE(cost, 0) + COALESCE(credit_amount, 0)), 2) AS cost_usd
+    FROM rows
     GROUP BY period, service
     ORDER BY period, cost_usd DESC
   `;

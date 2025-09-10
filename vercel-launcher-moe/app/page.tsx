@@ -8,7 +8,7 @@ export default function Home() {
   const [overall, setOverall] = useState<'ACTIVE'|'INACTIVE'|null>(null);
   const [items, setItems] = useState<InvItem[]>([]);
   const [costRows, setCostRows] = useState<{ period: string; service: string; cost_usd: number }[]>([]);
-  const [gran, setGran] = useState<'day'|'week'|'month'>('month');
+  const [gran, setGran] = useState<'day'|'week'|'month'|'all'>('month');
   const [error, setError] = useState<string | null>(null);
 
   async function start() {
@@ -92,6 +92,7 @@ export default function Home() {
             <button onClick={() => setGran('day')} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', background: gran==='day' ? '#1f2937' : '#0b1220', color: '#fff' }}>Daily</button>
             <button onClick={() => setGran('week')} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', background: gran==='week' ? '#1f2937' : '#0b1220', color: '#fff' }}>Weekly</button>
             <button onClick={() => setGran('month')} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', background: gran==='month' ? '#1f2937' : '#0b1220', color: '#fff' }}>Monthly</button>
+            <button onClick={() => setGran('all')} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #374151', background: gran==='all' ? '#1f2937' : '#0b1220', color: '#fff' }}>All</button>
           </div>
         </div>
 
@@ -146,7 +147,7 @@ export default function Home() {
 
         {/* Cost table */}
         <div style={{ marginTop: 24, textAlign: 'left' }}>
-          <h2 style={{ marginBottom: 8, fontSize: 18 }}>Costs (Monthly, since inception)</h2>
+          <h2 style={{ marginBottom: 8, fontSize: 18 }}>Costs ({gran === 'all' ? 'All-Time' : gran === 'month' ? 'Monthly' : gran === 'week' ? 'Weekly' : 'Daily'})</h2>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -164,6 +165,15 @@ export default function Home() {
                     <td style={{ padding: 8, textAlign: 'right' }}>${r.cost_usd.toFixed(2)}</td>
                   </tr>
                 ))}
+                {costRows.length > 0 && (
+                  <tr>
+                    <td style={{ padding: 8, fontWeight: 700 }}>TOTAL</td>
+                    <td style={{ padding: 8 }}></td>
+                    <td style={{ padding: 8, textAlign: 'right', fontWeight: 700 }}>
+                      ${costRows.reduce((acc, r) => acc + (r.cost_usd || 0), 0).toFixed(2)}
+                    </td>
+                  </tr>
+                )}
                 {costRows.length === 0 && (
                   <tr>
                     <td colSpan={3} style={{ padding: 8, opacity: 0.7 }}>No billing export configured or no data.</td>
