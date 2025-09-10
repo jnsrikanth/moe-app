@@ -1,0 +1,17 @@
+substitutions:
+  _REGION: us-central1
+  _REPOSITORY: moe-app
+  _IMAGE: moe-orchestrator
+  _TAG: manual
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Build orchestrator'
+    args: ['build','-t','${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:${_TAG}','.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push orchestrator'
+    args: ['push','${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:${_TAG}']
+
+images:
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:${_TAG}'
