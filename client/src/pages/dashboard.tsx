@@ -297,7 +297,29 @@ export default function Dashboard() {
                 <div className="text-xs text-gray-400">Active Requests</div>
                 <div className="text-xl font-bold text-white">{routerMetrics.activeRequests}</div>
               </div>
-              <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2">
+                {/* Stop MOE (scale-to-zero) */}
+                <Button
+                  variant="secondary"
+                  className="bg-gray-800 hover:bg-gray-700 border border-gray-600"
+                  onClick={async () => {
+                    if (!confirm('Stop MOE now and scale Cloud Run services to zero?')) return;
+                    try {
+                      const resp = await fetch('/api/orchestrator/stop', { method: 'POST' });
+                      if (!resp.ok) throw new Error(`Stop failed: ${resp.status}`);
+                      toast({ title: 'MOE stopping', description: 'Scaling services to zero…' });
+                      // Optional: redirect back to launcher if configured
+                      const launcher = (import.meta as any).env?.VITE_LAUNCHER_URL || (window as any).LAUNCHER_URL;
+                      if (launcher && confirm('Redirect back to launcher page?')) {
+                        window.location.href = launcher;
+                      }
+                    } catch (e: any) {
+                      toast({ title: 'Stop failed', description: e?.message || 'Unknown error', variant: 'destructive' });
+                    }
+                  }}
+                >
+                  Stop MOE
+                </Button>
                 <Select onValueChange={setSelectedType} value={selectedType}>
                   <SelectTrigger className="w-[240px] bg-gray-800 border-gray-700 text-white">
                     <SelectValue placeholder="Select request type" />

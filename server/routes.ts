@@ -433,6 +433,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Orchestrator (Start/Stop/Status) for MOE Cloud Run services
+  // Security: simple API key header. Set ORCH_API_KEY in environment.
+  function requireApiKey(req: any, res: any, next: any) {
+    const key = process.env.ORCH_API_KEY;
+    if (!key) return next(); // if not set, allow (dev)
+    const provided = req.headers['x-api-key'] || req.headers['x-orchestrator-key'];
+    if (provided && String(provided) === String(key)) return next();
+    res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // Config from env
+  const ORCH_PROJECT_ID = process.env.ORCH_PROJECT_ID || process.env.GCP_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || '';
+  const ORCH_LOCATION = process.env.ORCH_LOCATION || process.env.GCP_LOCATION || 'us-central1';
+  const ORCH_SERVICES = (process.env.ORCH_SERVICES || 'moe-app,credit-agent')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const ORCH_DASHBOARD_URL = process.env.ORCH_DASHBOARD_URL || '';
+
+  async function listRunRefs() {
+    const projectId = ORCH_PROJECT_ID;
+    const location = ORCH_LOCATION;
+    return ORCH_SERVICES.map((name) => ({ projectId, location, name }));
+  }
+
+  app.post('/api/orchestrator/start', requireApiKey, async (_req, res) => {
+    try {
+      if (!ORCH_PROJECT_ID) return res.status(500).json({ error: 'ORCH_PROJECT_ID not set' });
+      const { RunAdminV2 } = await import('./gcp/runAdminV2');
+      const refs = await listRunRefs();
+      for (const ref of refs) {
+        await RunAdminV2.setMinInstances(ref, 1);
+      }
+      // Best-effort: fetch primary service URI for redirect
+      let dashboardUrl = ORCH_DASHBOARD_URL;
+      if (!dashboardUrl) {
+        try {
+          const primary = refs.find(r => r.name === 'moe-app') || refs[0];
+          const info = await RunAdminV2.getService(primary);
+          if (info?.uri) dashboardUrl = `${info.uri}`;
+        } catch {}
+      }
+      res.json({ ok: true, services: ORCH_SERVICES, dashboardUrl });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to start MOE' });
+    }
+  });
+
+  app.post('/api/orchestrator/stop', requireApiKey, async (_req, res) => {
+    try {
+      if (!ORCH_PROJECT_ID) return res.status(500).json({ error: 'ORCH_PROJECT_ID not set' });
+      const { RunAdminV2 } = await import('./gcp/runAdminV2');
+      const refs = await listRunRefs();
+      for (const ref of refs) {
+        await RunAdminV2.setMinInstances(ref, 0);
+      }
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to stop MOE' });
+    }
+  });
+
+  app.get('/api/orchestrator/status', requireApiKey, async (_req, res) => {
+    try {
+      if (!ORCH_PROJECT_ID) return res.status(500).json({ error: 'ORCH_PROJECT_ID not set' });
+      const { RunAdminV2 } = await import('./gcp/runAdminV2');
+      const refs = await listRunRefs();
+      const primary = refs.find(r => r.name === 'moe-app') || refs[0];
+      const info = await RunAdminV2.getService(primary);
+
+      // Attempt a /health probe if we have a URI (unauthenticated or requires ID token)
+      let healthy = false;
+      let dashboardUrl = info?.uri;
+      if (dashboardUrl) {
+        try {
+          const healthUrl = `${dashboardUrl.replace(/\/$/, '')}/health`;
+          const resp = await fetch(healthUrl, { method: 'GET' });
+          healthy = resp.ok;
+        } catch {
+          // If the service is authenticated, skip health probe silently
+          healthy = false;
+        }
+      }
+
+      const ready = healthy || (info?.minInstanceCount ?? 0) > 0;
+      res.json({ ready, dashboardUrl, minInstanceCount: info?.minInstanceCount ?? 0 });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Failed to get status' });
+    }
+  });
+
   // WebSocket Server for real-time updates
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
