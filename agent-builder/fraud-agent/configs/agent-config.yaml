@@ -1,0 +1,173 @@
+# Fraud Detection Agent Configuration for Vertex AI Agent Builder
+apiVersion: agent.vertexai/v1
+kind: Agent
+metadata:
+  name: fraud-detection-agent
+  namespace: financial-services
+  labels:
+    domain: bfsi
+    type: fraud-detection
+    version: v1.0.0
+spec:
+  displayName: "Fraud Detection Expert Agent"
+  description: "Specialized agent for detecting fraudulent transactions and patterns in financial services"
+  
+  # Agent Engine Configuration
+  engine:
+    model: "gemini-1.5-pro-002"
+    temperature: 0.1
+    maxOutputTokens: 2048
+    topK: 10
+    topP: 0.95
+    
+  # Agent Instructions
+  instructions: |
+    You are a Fraud Detection Expert Agent specialized in identifying fraudulent activities in financial transactions.
+    
+    Your primary responsibilities include:
+    1. Analyzing transaction patterns for anomalies
+    2. Evaluating risk scores based on multiple factors
+    3. Checking against known fraud patterns and blacklists
+    4. Providing detailed fraud risk assessments
+    5. Recommending appropriate actions for suspicious activities
+    
+    When analyzing transactions, consider:
+    - Transaction amount and frequency patterns
+    - Geographic anomalies
+    - User behavior deviations
+    - Time-based patterns
+    - Cross-reference with historical fraud data
+    
+    Always provide:
+    - Fraud probability score (0-100%)
+    - Risk level classification (Low/Medium/High/Critical)
+    - Specific risk indicators identified
+    - Recommended actions
+    - Confidence level in assessment
+    
+  # Tools Configuration
+  tools:
+    - name: analyze_transaction
+      description: "Analyze a single transaction for fraud indicators"
+      type: function
+      implementation: ./tools/transaction_analyzer.py
+      
+    - name: check_blacklist
+      description: "Check entities against fraud blacklists"
+      type: function
+      implementation: ./tools/blacklist_checker.py
+      
+    - name: pattern_detection
+      description: "Detect suspicious patterns in transaction history"
+      type: function
+      implementation: ./tools/pattern_detector.py
+      
+    - name: risk_scoring
+      description: "Calculate comprehensive risk score"
+      type: function
+      implementation: ./tools/risk_scorer.py
+      
+    - name: external_verification
+      description: "Verify with external fraud databases"
+      type: api
+      endpoint: "${FRAUD_API_ENDPOINT}"
+      
+  # Data Stores Configuration
+  dataStores:
+    - name: fraud-patterns-db
+      type: vertex-search
+      description: "Historical fraud patterns and cases"
+      indexName: "fraud-patterns-index"
+      
+    - name: blacklist-db
+      type: firestore
+      description: "Known fraudulent entities and accounts"
+      collection: "fraud-blacklist"
+      
+    - name: transaction-history
+      type: bigquery
+      description: "Historical transaction data for pattern analysis"
+      dataset: "fraud_detection"
+      table: "transactions"
+      
+  # Response Schema
+  responseSchema:
+    type: object
+    properties:
+      fraudAssessment:
+        type: object
+        required: true
+        properties:
+          fraudProbability:
+            type: number
+            minimum: 0
+            maximum: 100
+            description: "Probability of fraud (0-100%)"
+          riskLevel:
+            type: string
+            enum: ["Low", "Medium", "High", "Critical"]
+          riskIndicators:
+            type: array
+            items:
+              type: string
+          recommendedAction:
+            type: string
+            enum: ["Approve", "Review", "Flag", "Block"]
+          confidence:
+            type: number
+            minimum: 0
+            maximum: 100
+          reasoning:
+            type: string
+            description: "Detailed explanation of the assessment"
+            
+  # Integration Configuration
+  integrations:
+    - type: pubsub
+      topic: "fraud-detection-events"
+      subscription: "fraud-agent-subscription"
+      
+    - type: webhook
+      endpoint: "${WEBHOOK_ENDPOINT}"
+      events: ["high_risk_detected", "critical_fraud_alert"]
+      
+  # Security and Compliance
+  security:
+    authentication:
+      type: oauth2
+      scopes:
+        - "https://www.googleapis.com/auth/cloud-platform"
+    encryption:
+      dataAtRest: true
+      dataInTransit: true
+    compliance:
+      - PCI-DSS
+      - SOC2
+      - GDPR
+      
+  # Performance Configuration
+  performance:
+    maxConcurrentRequests: 100
+    requestTimeoutSeconds: 30
+    autoScaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilization: 70
+      
+  # Monitoring and Logging
+  monitoring:
+    metrics:
+      - fraud_detection_latency
+      - fraud_probability_distribution
+      - risk_level_counts
+      - false_positive_rate
+    logging:
+      level: INFO
+      destinations:
+        - cloud-logging
+        - bigquery
+    alerts:
+      - name: high-fraud-rate
+        condition: "fraud_probability > 80"
+        channels: ["email", "slack"]
