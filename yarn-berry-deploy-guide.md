@@ -99,7 +99,7 @@ done
 # Start server bound to 0.0.0.0 with proxy awareness and file logs
 mkdir -p logs
 HOST=0.0.0.0 TRUST_PROXY=1 PORT=3000 LOG_FILE=./logs/app-dev.log \
-  nohup node .yarn/releases/yarn-4.10.2.cjs dev >/tmp/moe-app-dev-launch.out 2>&1 & echo $! > .dev-server.pid
+  nohup node .yarn/releases/yarn-4.10.2.cjs dev >>./logs/dev-launch.out 2>&1 & echo $! > .dev-server.pid
 
 # Health checks
 sleep 3
@@ -108,14 +108,26 @@ curl -s -o /dev/null -w "Root:   %{http_code} in %{time_total}s\n"   http://127.
 curl -s -o /dev/null -w "Health: %{http_code} in %{time_total}s\n"   http://127.0.0.1:3000/health
 ```
 
+Windows alternative (PowerShell) to free ports 3000–3005:
+```powershell
+$ports = 3000,3001,3002,3003,3004,3005
+foreach ($p in $ports) {
+  Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue |
+    ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+}
+```
+
 Notes
 - Host binding defaults to `0.0.0.0` in development; explicitly setting `HOST=0.0.0.0` ensures external reachability behind proxies.
 - `TRUST_PROXY=1` enables proxy awareness (honors `X-Forwarded-*`).
-- Logs: application logs go to `./logs/app-dev.log`; launch output is in `/tmp/moe-app-dev-launch.out`.
+- Logs: application logs go to `./logs/app-dev.log`; launch output is in `./logs/dev-launch.out`.
 
 Stop the server:
 ```bash
+# With Yarn available:
 kill "$(cat .dev-server.pid)" 2>/dev/null || yarn run kill-dev
+# Or with vendored Yarn:
+kill "$(cat .dev-server.pid)" 2>/dev/null || node .yarn/releases/yarn-4.10.2.cjs run kill-dev
 ```
 
 ---
@@ -132,7 +144,7 @@ yarn build
 
 # Start in production
 NODE_ENV=production HOST=0.0.0.0 TRUST_PROXY=1 PORT=3000 LOG_FILE=./logs/app-prod.log \
-  nohup yarn start >/tmp/moe-app-prod-launch.out 2>&1 & echo $! > .prod-server.pid
+  nohup yarn start >>./logs/prod-launch.out 2>&1 & echo $! > .prod-server.pid
 ```
 
 ---
@@ -209,7 +221,15 @@ YARN_ENABLE_NETWORK=0 yarn install --immutable
     lsof -tiTCP:$p -sTCP:LISTEN | xargs -r kill -9 || true
   done
   ```
-- Logs: check `./logs/app-dev.log` (and `/tmp/moe-app-dev-launch.out`).
+  Windows (PowerShell):
+  ```powershell
+  $ports = 3000,3001,3002,3003,3004,3005
+  foreach ($p in $ports) {
+    Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue |
+      ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+  }
+  ```
+- Logs: check `./logs/app-dev.log` (and `./logs/dev-launch.out`).
 
 ---
 
@@ -229,7 +249,7 @@ YARN_ENABLE_NETWORK=0 node .yarn/releases/yarn-4.10.2.cjs install --immutable
 # Start dev (background) using vendored Yarn
 mkdir -p logs
 HOST=0.0.0.0 TRUST_PROXY=1 PORT=3000 LOG_FILE=./logs/app-dev.log \
-  nohup node .yarn/releases/yarn-4.10.2.cjs dev >/tmp/moe-app-dev-launch.out 2>&1 & echo $! > .dev-server.pid
+  nohup node .yarn/releases/yarn-4.10.2.cjs dev >>./logs/dev-launch.out 2>&1 & echo $! > .dev-server.pid
 
 # Health checks
 sleep 3
