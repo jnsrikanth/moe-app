@@ -129,19 +129,21 @@ free_ports_unix() {
 free_ports_win() {
   # PowerShell-based port free for Windows environments
   if command -v powershell.exe >/dev/null 2>&1; then
-    powershell.exe -NoProfile -Command "\
-      $ports = 3000,3001,3002,3003,3004,3005; \
-      foreach ($p in $ports) { \
-        Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue | \
-          ForEach-Object { Stop-Process -Id $_.OwningProcess -Force } \
-      }" || true
+    powershell.exe -NoProfile -Command '
+      $ports = 3000,3001,3002,3003,3004,3005;
+      foreach ($p in $ports) {
+        Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue |
+          ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+      }
+    ' || true
   elif command -v pwsh >/dev/null 2>&1; then
-    pwsh -NoProfile -Command "\
-      $ports = 3000,3001,3002,3003,3004,3005; \
-      foreach ($p in $ports) { \
-        Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue | \
-          ForEach-Object { Stop-Process -Id $_.OwningProcess -Force } \
-      }" || true
+    pwsh -NoProfile -Command '
+      $ports = 3000,3001,3002,3003,3004,3005;
+      foreach ($p in $ports) {
+        Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue |
+          ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+      }
+    ' || true
   fi
 }
 
