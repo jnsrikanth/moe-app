@@ -101,9 +101,23 @@ class DevServerManager {
     } else {
       envContent += `\nPORT=${port}\n`;
     }
+
+    // Ensure HOST is present and set to 0.0.0.0 for CloudPC/proxy-friendly dev
+    if (envContent.match(/^HOST=/m)) {
+      envContent = envContent.replace(/^HOST=.*/m, `HOST=0.0.0.0`);
+    } else {
+      envContent += `HOST=0.0.0.0\n`;
+    }
+
+    // Trust proxy by default in secure sandbox
+    if (envContent.match(/^TRUST_PROXY=/m)) {
+      // leave as-is
+    } else {
+      envContent += `TRUST_PROXY=1\n`;
+    }
     
     fs.writeFileSync(envPath, envContent);
-    console.log(`✅ Updated .env file with PORT=${port}`);
+    console.log(`✅ Updated .env file with PORT=${port}, HOST=0.0.0.0, TRUST_PROXY=1`);
   }
 
   async startServer(port) {
@@ -115,7 +129,9 @@ class DevServerManager {
     const envBlock = {
       ...process.env,
       PORT: String(port ?? ''),
-      NODE_ENV: 'development'
+      HOST: process.env.HOST || '0.0.0.0',
+      NODE_ENV: 'development',
+      LOG_FILE: process.env.LOG_FILE || '/tmp/moe-app-dev.log'
     };
 
     // Helper to write PID only when available
@@ -135,13 +151,30 @@ class DevServerManager {
     const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 
     let serverProcess = spawn(npxCmd, ['tsx', 'server/index.ts'], {
-      stdio: 'inherit',
+      stdio: ['ignore', 'pipe', 'pipe'],
       env: envBlock,
     });
 
     let launched = false;
 
     const attachCommonHandlers = (child, label) => {
+      // Tee stdout/stderr to both console and a log file
+      try {
+        const logPath = envBlock.LOG_FILE || '/tmp/moe-app-dev.log';
+        const logStream = fs.createWriteStream(logPath, { flags: 'a' });
+        child.stdout && child.stdout.on('data', (buf) => {
+          try { process.stdout.write(buf); } catch {}
+          try { logStream.write(buf); } catch {}
+        });
+        child.stderr && child.stderr.on('data', (buf) => {
+          try { process.stderr.write(buf); } catch {}
+          try { logStream.write(buf); } catch {}
+        });
+        console.log(`📝 Dev logs: ${logPath}`);
+      } catch (e) {
+        console.warn('⚠️  Could not initialize file logging for dev process:', e?.message || e);
+      }
+
       child.on('spawn', () => {
         launched = true;
         writePidIfAvailable(child);
@@ -174,7 +207,7 @@ class DevServerManager {
       try {
         const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
         const fallback = spawn(npmCmd, ['run', 'dev:direct'], {
-          stdio: 'inherit',
+          stdio: ['ignore', 'pipe', 'pipe'],
           env: envBlock,
         });
         attachCommonHandlers(fallback, 'npm run dev:direct');

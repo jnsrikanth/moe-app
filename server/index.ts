@@ -1,9 +1,15 @@
 import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { setupVite, serveStatic } from "./vite";
+import { logger, httpLogger } from "./logger";
 
 const app = express();
+
+// Proxy awareness (so req.ip/proto are correct behind proxies)
+if ((process.env.TRUST_PROXY || '').toLowerCase() === '1' || (process.env.TRUST_PROXY || '').toLowerCase() === 'true') {
+  app.set('trust proxy', true);
+}
 
 // CORS configuration for production
 app.use((req, res, next) => {
@@ -48,6 +54,9 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Detailed HTTP logging (minimal to console, full JSON to file)
+app.use(httpLogger);
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -71,7 +80,7 @@ app.use((req, res, next) => {
         logLine = logLine.slice(0, 79) + "…";
       }
 
-      log(logLine);
+      logger.info(logLine);
     }
   });
 
@@ -103,20 +112,21 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '3000', 10);
-  const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
+  const host = process.env.HOST || '0.0.0.0';
+  const baseUrl = process.env.PROXY_BASE_URL || `http://${host}:${port}`;
   
   server.listen(port, host, () => {
-    log(`🚀 MoE Server running on ${host}:${port}`);
-    log(`📊 Dashboard: http://${host}:${port}`);
-    log(`🔌 API: http://${host}:${port}/api`);
+    logger.info(`🚀 MoE Server running on ${host}:${port}`);
+    logger.info(`📊 Dashboard: ${baseUrl}`);
+    logger.info(`🔌 API: ${baseUrl}/api`);
   });
 
   server.on('error', (error: any) => {
     if (error.code === 'EADDRINUSE') {
-      log(`❌ Port ${port} is already in use`);
+      logger.error(`❌ Port ${port} is already in use`);
       process.exit(1);
     } else {
-      log(`❌ Server error: ${error.message}`);
+      logger.error(`❌ Server error: ${error.message}`);
       throw error;
     }
   });
