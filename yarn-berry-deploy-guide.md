@@ -28,11 +28,22 @@ Branch: `yarn-berry` (contains `.yarn/cache`, `yarn.lock`, and `.yarnrc.yml`)
 ## 2) One-time setup per machine
 
 ```bash
-# Ensure Corepack provisions Yarn from package.json "packageManager"
-corepack enable
+# If allowed, enable Corepack so it provisions Yarn from package.json "packageManager"
+corepack enable || true
 ```
 
 This project specifies `"packageManager": "yarn@4.x"` so Corepack will fetch and pin the correct Yarn version automatically (no need to commit Yarn binaries).
+
+If Corepack/Yarn cannot be installed globally on the secure machine, this repo includes a vendored Yarn CLI:
+
+- Binary: `.yarn/releases/yarn-4.10.2.cjs`
+- Config: `.yarnrc.yml` with `yarnPath: .yarn/releases/yarn-4.10.2.cjs`
+
+You can run Yarn commands without any global install by prefixing with `node`:
+```bash
+node .yarn/releases/yarn-4.10.2.cjs -v
+YARN_ENABLE_NETWORK=0 node .yarn/releases/yarn-4.10.2.cjs install --immutable
+```
 
 ---
 
@@ -59,7 +70,11 @@ ls -1 .yarn/cache | head -n 5
 rm -rf node_modules
 
 # Perform an immutable, offline install from the repo cache only
+# Option A (preferred when Yarn is available):
 YARN_ENABLE_NETWORK=0 yarn install --immutable
+
+# Option B (no global Yarn/Corepack):
+YARN_ENABLE_NETWORK=0 node .yarn/releases/yarn-4.10.2.cjs install --immutable
 ```
 
 - `YARN_ENABLE_NETWORK=0` forbids all network access. If any dependency is missing from `.yarn/cache`, the install fails (by design).
@@ -72,7 +87,11 @@ YARN_ENABLE_NETWORK=0 yarn install --immutable
 
 ```bash
 # Optionally ensure no old processes are running and ports are free
+# With Yarn available:
 yarn run kill-dev || true
+# Or with vendored Yarn:
+node .yarn/releases/yarn-4.10.2.cjs run kill-dev || true
+
 for p in 3000 3001 3002 3003 3004 3005; do
   lsof -tiTCP:$p -sTCP:LISTEN | xargs -r kill -9 || true
 done
@@ -80,7 +99,7 @@ done
 # Start server bound to 0.0.0.0 with proxy awareness and file logs
 mkdir -p logs
 HOST=0.0.0.0 TRUST_PROXY=1 PORT=3000 LOG_FILE=./logs/app-dev.log \
-  nohup yarn dev >/tmp/moe-app-dev-launch.out 2>&1 & echo $! > .dev-server.pid
+  nohup node .yarn/releases/yarn-4.10.2.cjs dev >/tmp/moe-app-dev-launch.out 2>&1 & echo $! > .dev-server.pid
 
 # Health checks
 sleep 3
@@ -197,17 +216,20 @@ YARN_ENABLE_NETWORK=0 yarn install --immutable
 ## 10) Quick reference (copy/paste)
 
 ```bash
-# One-time per machine
-corepack enable
+# One-time per machine (if allowed)
+corepack enable || true
 
 # Clean + offline install
 rm -rf node_modules
+# Yarn present:
 YARN_ENABLE_NETWORK=0 yarn install --immutable
+# Or vendored Yarn (no global installs):
+YARN_ENABLE_NETWORK=0 node .yarn/releases/yarn-4.10.2.cjs install --immutable
 
-# Start dev (background)
+# Start dev (background) using vendored Yarn
 mkdir -p logs
 HOST=0.0.0.0 TRUST_PROXY=1 PORT=3000 LOG_FILE=./logs/app-dev.log \
-  nohup yarn dev >/tmp/moe-app-dev-launch.out 2>&1 & echo $! > .dev-server.pid
+  nohup node .yarn/releases/yarn-4.10.2.cjs dev >/tmp/moe-app-dev-launch.out 2>&1 & echo $! > .dev-server.pid
 
 # Health checks
 sleep 3
@@ -215,7 +237,7 @@ curl -s -o /dev/null -w "Root:   %{http_code} in %{time_total}s\n"   http://127.
 curl -s -o /dev/null -w "Health: %{http_code} in %{time_total}s\n" http://127.0.0.1:3000/health
 
 # Stop
-kill "$(cat .dev-server.pid)" 2>/dev/null || yarn run kill-dev
+kill "$(cat .dev-server.pid)" 2>/dev/null || node .yarn/releases/yarn-4.10.2.cjs run kill-dev
 ```
 
 ---
