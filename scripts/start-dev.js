@@ -147,14 +147,8 @@ class DevServerManager {
       }
     };
 
-    // Try launching via npx first; fall back to npm run dev:direct if spawn fails
-    const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-
-    let serverProcess = spawn(npxCmd, ['tsx', 'server/index.ts'], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: envBlock,
-    });
-
+    // Prefer launching tsx directly via Node to avoid npx issues in locked-down envs
+    let serverProcess;
     let launched = false;
 
     const attachCommonHandlers = (child, label) => {
@@ -198,11 +192,33 @@ class DevServerManager {
       });
     };
 
-    attachCommonHandlers(serverProcess, 'npx tsx');
+    // Attempt tsx direct
+    try {
+      // Resolve tsx CLI entry
+      let tsxEntry;
+      try {
+        // tsx publishes an ESM CLI at dist/cli.mjs
+        tsxEntry = require.resolve('tsx/dist/cli.mjs');
+      } catch (e1) {
+        try {
+          tsxEntry = require.resolve('tsx');
+        } catch (e2) {
+          tsxEntry = null;
+        }
+      }
 
-    // If npx could not be found or failed to spawn immediately, try fallback
-    serverProcess.once('error', (err) => {
-      if (launched) return;
+      if (tsxEntry) {
+        const nodeCmd = process.execPath; // current Node
+        serverProcess = spawn(nodeCmd, [tsxEntry, 'server/index.ts'], {
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: envBlock,
+        });
+        attachCommonHandlers(serverProcess, 'node tsx');
+      } else {
+        throw new Error('tsx CLI not found in local dependencies');
+      }
+    } catch (err) {
+      if (launched) return serverProcess;
       console.warn('⚠️  Falling back to "npm run dev:direct" (ensure tsx is installed as a devDependency).');
       try {
         const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -216,7 +232,7 @@ class DevServerManager {
         console.error('❌ Fallback launch failed:', fallbackErr?.message || fallbackErr);
         throw fallbackErr;
       }
-    });
+    }
 
     return serverProcess;
   }
