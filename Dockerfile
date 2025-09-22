@@ -10,7 +10,7 @@ ENV YARN_ENABLE_NETWORK=0
 RUN if [ -f .yarn/releases/yarn-4.10.2.cjs ]; then \
       node .yarn/releases/yarn-4.10.2.cjs install --immutable --inline-builds; \
     else \
-      corepack enable && corepack prepare yarn@4.10.2 --activate && yarn install --immutable --inline-builds; \
+      export YARN_IGNORE_PATH=1 && corepack enable && corepack prepare yarn@4.10.2 --activate && yarn install --immutable --inline-builds; \
     fi
 
 # Copy source and build
@@ -29,7 +29,7 @@ ENV YARN_ENABLE_NETWORK=0 NODE_ENV=production PORT=8080 HOST=0.0.0.0
 RUN if [ -f .yarn/releases/yarn-4.10.2.cjs ]; then \
       node .yarn/releases/yarn-4.10.2.cjs install --production --immutable --inline-builds; \
     else \
-      corepack enable && corepack prepare yarn@4.10.2 --activate && yarn install --production --immutable --inline-builds; \
+      export YARN_IGNORE_PATH=1 && corepack enable && corepack prepare yarn@4.10.2 --activate && yarn install --production --immutable --inline-builds; \
     fi
 
 # Copy compiled artifacts
