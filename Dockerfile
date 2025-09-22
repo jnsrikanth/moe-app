@@ -19,7 +19,9 @@ COPY tsconfig*.json ./
 COPY vite.config.ts ./
 COPY tailwind.config.ts ./
 COPY postcss.config.js ./
-RUN YARN_IGNORE_PATH=1 yarn run build
+COPY scripts/build-server.mjs ./scripts/build-server.mjs
+COPY tsconfig.server.json ./tsconfig.server.json
+RUN YARN_IGNORE_PATH=1 yarn run build && node scripts/build-server.mjs
 
 # Runtime stage
 FROM node:20-slim
