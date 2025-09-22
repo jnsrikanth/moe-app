@@ -188,6 +188,7 @@ build_app() {
 start_server() {
   info "Starting compiled server on 0.0.0.0:$PORT (logs: $APP_LOG)"
   rotate_logs
+  # Try compiled JS first
   if command -v nohup >/dev/null 2>&1; then
     NODE_ENV=production HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
       nohup node dist-server/server/index.js >>"$LAUNCH_LOG" 2>&1 &
@@ -200,8 +201,29 @@ start_server() {
   PID=$(cat .dev-server.pid 2>/dev/null || true)
   if [[ -n "${PID}" ]] && ps -p "$PID" >/dev/null 2>&1; then
     ok "Server started (pid=$PID)"
+    return 0
+  fi
+  warn "Compiled server failed to start; trying local tsx CLI fallback"
+  # Fallback: run via local tsx binary (no npx/npm). Cross-platform bin path.
+  TSX_BIN="node_modules/.bin/tsx"
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) TSX_BIN="node_modules/.bin/tsx.cmd";;
+  esac
+  if command -v nohup >/dev/null 2>&1; then
+    HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
+      nohup "$TSX_BIN" server/index.ts >>"$LAUNCH_LOG" 2>&1 &
   else
-    err "Server failed to start; see $LAUNCH_LOG and $APP_LOG"
+    HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
+      "$TSX_BIN" server/index.ts >>"$LAUNCH_LOG" 2>&1 &
+  fi
+  echo $! > .dev-server.pid
+  sleep 3
+  PID=$(cat .dev-server.pid 2>/dev/null || true)
+  if [[ -n "${PID}" ]] && ps -p "$PID" >/dev/null 2>&1; then
+    ok "Server started via local tsx CLI (pid=$PID)"
+    return 0
+  else
+    err "Server failed to start (both compiled and tsx CLI); see $LAUNCH_LOG and $APP_LOG"
     return 1
   fi
 }
