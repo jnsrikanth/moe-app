@@ -16,7 +16,7 @@ RUN if [ -f .yarn/releases/yarn-4.10.2.cjs ]; then \
 COPY server/ server/
 COPY client/ client/
 COPY tsconfig*.json ./
-RUN yarn run build
+RUN YARN_IGNORE_PATH=1 yarn run build
 
 # Runtime stage
 FROM node:20-slim
