@@ -1,0 +1,17 @@
+# Files not to upload to Google Cloud Build context
+# Keep it minimal to ensure Yarn Berry releases and cache are included
+
+# VCS and OS junk
+.git
+**/.DS_Store
+
+# Build outputs and local logs (not needed in build context)
+dist
+dist-server
+logs
+*.log
+
+# Do NOT ignore Yarn directories; we need releases and cache for zero-install
+!.yarn/**
+!.yarn/releases/**
+!.yarn/cache/**
