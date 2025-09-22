@@ -194,64 +194,47 @@ class DevServerManager {
       });
     };
 
-    // Attempt tsx direct
+    // Attempt tsx via local bin first (most robust across shells)
     try {
-      // Resolve tsx CLI entry
-      let tsxEntry;
-      try {
-        // tsx publishes an ESM CLI at dist/cli.mjs
-        tsxEntry = requireCJS.resolve('tsx/dist/cli.mjs');
-      } catch (e1) {
-        try {
-          tsxEntry = requireCJS.resolve('tsx');
-        } catch (e2) {
-          tsxEntry = null;
-        }
-      }
-
-      if (tsxEntry) {
-        const nodeCmd = process.execPath; // current Node
-        const isWin = process.platform === 'win32';
-        if (isWin) {
-          const cmdStr = `"${nodeCmd}" "${tsxEntry}" server/index.ts`;
-          serverProcess = spawn(cmdStr, {
-            stdio: ['ignore', 'pipe', 'pipe'],
-            env: envBlock,
-            shell: true,
-          });
-        } else {
-          serverProcess = spawn(nodeCmd, [tsxEntry, 'server/index.ts'], {
-            stdio: ['ignore', 'pipe', 'pipe'],
-            env: envBlock,
-          });
-        }
-        attachCommonHandlers(serverProcess, 'node tsx');
+      const isWin = process.platform === 'win32';
+      const tsxBin = path.join(process.cwd(), 'node_modules', '.bin', isWin ? 'tsx.cmd' : 'tsx');
+      if (fs.existsSync(tsxBin)) {
+        serverProcess = spawn(tsxBin, ['server/index.ts'], {
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: envBlock,
+        });
+        attachCommonHandlers(serverProcess, 'tsx bin');
       } else {
-        throw new Error('tsx CLI not found in local dependencies');
+        // Resolve tsx CLI entry (ESM) and spawn via current Node
+        let tsxEntry;
+        try {
+          tsxEntry = requireCJS.resolve('tsx/dist/cli.mjs');
+        } catch (e1) {
+          try {
+            tsxEntry = requireCJS.resolve('tsx');
+          } catch (e2) {
+            tsxEntry = null;
+          }
+        }
+        if (!tsxEntry) throw new Error('tsx CLI not found in local dependencies');
+        const nodeCmd = process.execPath; // current Node
+        serverProcess = spawn(nodeCmd, [tsxEntry, 'server/index.ts'], {
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: envBlock,
+        });
+        attachCommonHandlers(serverProcess, 'node tsx');
       }
     } catch (err) {
       if (launched) return serverProcess;
       console.warn('⚠️  Falling back to "npm run dev:direct" (ensure tsx is installed as a devDependency).');
       try {
-        const isWin = process.platform === 'win32';
-        if (isWin) {
-          const cmdStr = 'npm run dev:direct';
-          const fallback = spawn(cmdStr, {
-            stdio: ['ignore', 'pipe', 'pipe'],
-            env: envBlock,
-            shell: true,
-          });
-          attachCommonHandlers(fallback, 'npm run dev:direct');
-          serverProcess = fallback;
-        } else {
-          const npmCmd = 'npm';
-          const fallback = spawn(npmCmd, ['run', 'dev:direct'], {
-            stdio: ['ignore', 'pipe', 'pipe'],
-            env: envBlock,
-          });
-          attachCommonHandlers(fallback, 'npm run dev:direct');
-          serverProcess = fallback;
-        }
+        const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+        const fallback = spawn(npmCmd, ['run', 'dev:direct'], {
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: envBlock,
+        });
+        attachCommonHandlers(fallback, 'npm run dev:direct');
+        serverProcess = fallback;
       } catch (fallbackErr) {
         console.error('❌ Fallback launch failed:', fallbackErr?.message || fallbackErr);
         throw fallbackErr;
