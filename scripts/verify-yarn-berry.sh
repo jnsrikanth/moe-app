@@ -280,6 +280,40 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || { err "Missing required command: $1"; exit 1; }
 }
 
+upsert_env_kv() {
+  # Usage: upsert_env_kv KEY VALUE
+  local key="$1"; shift
+  local val="$1"; shift || true
+  local envfile=".env"
+  touch "$envfile" 2>/dev/null || true
+  if grep -qE "^${key}=" "$envfile" 2>/dev/null; then
+    # Replace line in place
+    if command -v gsed >/dev/null 2>&1; then
+      gsed -i "s|^${key}=.*|${key}=${val}|" "$envfile"
+    else
+      sed -i '' "s|^${key}=.*|${key}=${val}|" "$envfile" 2>/dev/null || sed -i "s|^${key}=.*|${key}=${val}|" "$envfile"
+    fi
+  else
+    printf "%s\n" "${key}=${val}" >> "$envfile"
+  fi
+}
+
+ensure_env_defaults() {
+  info "Writing .env defaults for CloudPC"
+  upsert_env_kv HOST 0.0.0.0
+  upsert_env_kv TRUST_PROXY 1
+  upsert_env_kv PORT "$PORT"
+
+  # If STORAGE is not present, default to JSON persistence (no native builds)
+  if ! grep -qE '^STORAGE=' .env 2>/dev/null; then
+    upsert_env_kv STORAGE json
+  fi
+  # Ensure JSON_STORE_PATH when STORAGE=json
+  if grep -qE '^STORAGE=json' .env 2>/dev/null && ! grep -qE '^JSON_STORE_PATH=' .env 2>/dev/null; then
+    upsert_env_kv JSON_STORE_PATH ./data/moe-data.json
+  fi
+}
+
 main() {
   # Pre-flight checks for locked-down environments
   require_cmd node
@@ -301,10 +335,13 @@ main() {
   info "Step 4: Build (can be skipped with --skip-build)"
   build_app
 
-  info "Step 5: Start server"
+  info "Step 5: Ensure .env defaults"
+  ensure_env_defaults
+
+  info "Step 6: Start server"
   start_server || { summary_failure; exit 1; }
 
-  info "Step 6: Health checks"
+  info "Step 7: Health checks"
   if health_checks; then
     summary_success
   else
