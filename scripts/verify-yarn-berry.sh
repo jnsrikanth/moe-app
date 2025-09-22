@@ -182,8 +182,14 @@ build_app() {
 start_server() {
   info "Starting dev server on 0.0.0.0:$PORT (logs: $APP_LOG)"
   rotate_logs
-  HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
-    { if command -v nohup >/dev/null 2>&1; then nohup "${YARN_CMD[@]}" dev; else "${YARN_CMD[@]}" dev; fi; } >>"$LAUNCH_LOG" 2>&1 & echo $! > .dev-server.pid
+  if command -v nohup >/dev/null 2>&1; then
+    HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
+      nohup "${YARN_CMD[@]}" dev >>"$LAUNCH_LOG" 2>&1 &
+  else
+    HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
+      "${YARN_CMD[@]}" dev >>"$LAUNCH_LOG" 2>&1 &
+  fi
+  echo $! > .dev-server.pid
   sleep 3
   PID=$(cat .dev-server.pid 2>/dev/null || true)
   if [[ -n "${PID}" ]] && ps -p "$PID" >/dev/null 2>&1; then
@@ -198,14 +204,25 @@ health_checks() {
   info "Running health checks..."
   local ok_root=1 ok_health=1 code_root=0 code_health=0
 
+  # Determine the actual port in case the launcher chose a different one
+  local PORT_USED="$PORT"
+  if [[ -f "$LAUNCH_LOG" ]]; then
+    local chosen
+    chosen=$(grep -Eo 'Starting MoE server on port [0-9]+' "$LAUNCH_LOG" | awk '{print $6}' | tail -n1 || true)
+    if [[ -z "$chosen" ]]; then
+      chosen=$(grep -Eo 'Port [0-9]+ is available' "$LAUNCH_LOG" | awk '{print $2}' | tail -n1 || true)
+    fi
+    if [[ -n "$chosen" ]]; then PORT_USED="$chosen"; fi
+  fi
+
   # wait up to 20s for /health to return 200
   for i in {1..20}; do
-    code_health=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/health" || echo 000)
+    code_health=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT_USED/health" || echo 000)
     if [[ "$code_health" == "200" ]]; then break; fi
     sleep 1
   done
 
-  code_root=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/" || echo 000)
+  code_root=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT_USED/" || echo 000)
 
   if [[ "$code_root" == "200" ]]; then ok_root=0; fi
   if [[ "$code_health" == "200" ]]; then ok_health=0; fi
