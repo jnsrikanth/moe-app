@@ -89,14 +89,24 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 LOG_DIR_RESOLVED="$DEFAULT_LOG_DIR"
 mkdir -p "$LOG_DIR_RESOLVED" 2>/dev/null || true
 if [[ ! -w "$LOG_DIR_RESOLVED" ]]; then
-  warn "Log dir $LOG_DIR_RESOLVED not writable, falling back to /tmp/moe-app-logs"
-  LOG_DIR_RESOLVED="/tmp/moe-app-logs"
-  mkdir -p "$LOG_DIR_RESOLVED"
+  # Hardened fallback chain for locked-down systems (no symlinks, restricted dirs)
+  warn "Log dir $LOG_DIR_RESOLVED not writable, trying temp locations"
+  if [[ -n "${TMPDIR:-}" ]] && mkdir -p "$TMPDIR/moe-app-logs" 2>/dev/null && [[ -w "$TMPDIR/moe-app-logs" ]]; then
+    LOG_DIR_RESOLVED="$TMPDIR/moe-app-logs"
+  elif [[ -n "${TEMP:-}" ]] && mkdir -p "$TEMP/moe-app-logs" 2>/dev/null && [[ -w "$TEMP/moe-app-logs" ]]; then
+    LOG_DIR_RESOLVED="$TEMP/moe-app-logs"
+  elif mkdir -p "/tmp/moe-app-logs" 2>/dev/null && [[ -w "/tmp/moe-app-logs" ]]; then
+    LOG_DIR_RESOLVED="/tmp/moe-app-logs"
+  else
+    err "No writable log directory available. Set LOG_DIR to a writable path and retry."
+    exit 1
+  fi
 fi
 APP_LOG="$LOG_DIR_RESOLVED/app-dev-$TIMESTAMP.log"
 LAUNCH_LOG="$LOG_DIR_RESOLVED/dev-launch-$TIMESTAMP.out"
-ln -sf "$(basename "$APP_LOG")" "$LOG_DIR_RESOLVED/app-dev.log"
-ln -sf "$(basename "$LAUNCH_LOG")" "$LOG_DIR_RESOLVED/dev-launch.out"
+# On hardened Windows environments, symlinks may be disallowed. Use marker files instead of symlinks.
+echo "$APP_LOG" > "$LOG_DIR_RESOLVED/app-dev.latest" 2>/dev/null || true
+echo "$LAUNCH_LOG" > "$LOG_DIR_RESOLVED/dev-launch.latest" 2>/dev/null || true
 
 rotate_logs() {
   # keep last 10 matching files
@@ -104,10 +114,42 @@ rotate_logs() {
   ls -1t "$LOG_DIR_RESOLVED"/dev-launch-*.out 2>/dev/null | tail -n +11 | xargs -r rm -f || true
 }
 
-free_ports() {
+free_ports_unix() {
   for p in 3000 3001 3002 3003 3004 3005; do
-    lsof -tiTCP:$p -sTCP:LISTEN | xargs -r kill -9 || true
+    if command -v lsof >/dev/null 2>&1; then
+      lsof -tiTCP:$p -sTCP:LISTEN | xargs -r kill -9 || true
+    else
+      # netstat/grep fallback
+      PIDS=$(netstat -anp 2>/dev/null | awk -v port=:$p '$0 ~ port && /LISTEN/ {print $7}' | sed 's/\/.*//' || true)
+      if [[ -n "$PIDS" ]]; then kill -9 $PIDS 2>/dev/null || true; fi
+    fi
   done
+}
+
+free_ports_win() {
+  # PowerShell-based port free for Windows environments
+  if command -v powershell.exe >/dev/null 2>&1; then
+    powershell.exe -NoProfile -Command "\
+      $ports = 3000,3001,3002,3003,3004,3005; \
+      foreach ($p in $ports) { \
+        Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue | \
+          ForEach-Object { Stop-Process -Id $_.OwningProcess -Force } \
+      }" || true
+  elif command -v pwsh >/dev/null 2>&1; then
+    pwsh -NoProfile -Command "\
+      $ports = 3000,3001,3002,3003,3004,3005; \
+      foreach ($p in $ports) { \
+        Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue | \
+          ForEach-Object { Stop-Process -Id $_.OwningProcess -Force } \
+      }" || true
+  fi
+}
+
+free_ports() {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) free_ports_win;;
+    *) free_ports_unix;;
+  esac
 }
 
 kill_existing() {
@@ -141,7 +183,7 @@ start_server() {
   info "Starting dev server on 0.0.0.0:$PORT (logs: $APP_LOG)"
   rotate_logs
   HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
-    nohup "${YARN_CMD[@]}" dev >>"$LAUNCH_LOG" 2>&1 & echo $! > .dev-server.pid
+    { if command -v nohup >/dev/null 2>&1; then nohup "${YARN_CMD[@]}" dev; else "${YARN_CMD[@]}" dev; fi; } >>"$LAUNCH_LOG" 2>&1 & echo $! > .dev-server.pid
   sleep 3
   PID=$(cat .dev-server.pid 2>/dev/null || true)
   if [[ -n "${PID}" ]] && ps -p "$PID" >/dev/null 2>&1; then

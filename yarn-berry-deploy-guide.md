@@ -120,7 +120,7 @@ foreach ($p in $ports) {
 Notes
 - Host binding defaults to `0.0.0.0` in development; explicitly setting `HOST=0.0.0.0` ensures external reachability behind proxies.
 - `TRUST_PROXY=1` enables proxy awareness (honors `X-Forwarded-*`).
-- Logs: application logs go to `./logs/app-dev.log`; launch output is in `./logs/dev-launch.out`.
+- Logs: application logs written as timestamped files in `./logs`; the latest file paths are recorded in `./logs/app-dev.latest` and `./logs/dev-launch.latest` to avoid symlink requirements.
 
 Stop the server:
 ```bash
@@ -229,7 +229,7 @@ YARN_ENABLE_NETWORK=0 yarn install --immutable
       ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
   }
   ```
-- Logs: check `./logs/app-dev.log` (and `./logs/dev-launch.out`).
+- Logs: check the file paths stored in `./logs/app-dev.latest` and `./logs/dev-launch.latest` (each contains the full path to the most recent log file).
 
 ---
 
@@ -310,8 +310,11 @@ scripts/verify-yarn-berry.sh --skip-build
 
 Outputs and files
 - PID file: `.dev-server.pid`
-- Application logs: `./logs/app-dev-YYYYMMDD-HHMMSS.log` and symlink `./logs/app-dev.log`
-- Launcher logs: `./logs/dev-launch-YYYYMMDD-HHMMSS.out` and symlink `./logs/dev-launch.out`
+- Application logs: `./logs/app-dev-YYYYMMDD-HHMMSS.log`
+- Launcher logs: `./logs/dev-launch-YYYYMMDD-HHMMSS.out`
+- Latest markers (no symlinks required; path stored as text):
+  - `./logs/app-dev.latest` contains the absolute path to the latest app log
+  - `./logs/dev-launch.latest` contains the absolute path to the latest launcher log
 - Rotation: keeps the 10 most recent files of each type
 
 Exit codes
