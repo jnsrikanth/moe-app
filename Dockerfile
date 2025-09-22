@@ -16,6 +16,9 @@ RUN if [ -f .yarn/releases/yarn-4.10.2.cjs ]; then \
 COPY server/ server/
 COPY client/ client/
 COPY tsconfig*.json ./
+COPY vite.config.ts ./
+COPY tailwind.config.ts ./
+COPY postcss.config.js ./
 RUN YARN_IGNORE_PATH=1 yarn run build
 
 # Runtime stage
