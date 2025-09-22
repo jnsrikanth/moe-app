@@ -29,9 +29,9 @@ WORKDIR /app
 COPY package.json yarn.lock .yarnrc.yml .yarn/ ./
 ENV NODE_ENV=production PORT=8080 HOST=0.0.0.0
 RUN if [ -f .yarn/releases/yarn-4.10.2.cjs ]; then \
-      YARN_ENABLE_NETWORK=1 node .yarn/releases/yarn-4.10.2.cjs install --production --immutable --inline-builds; \
+      YARN_ENABLE_NETWORK=1 node .yarn/releases/yarn-4.10.2.cjs install --immutable --inline-builds; \
     else \
-      export YARN_IGNORE_PATH=1 YARN_ENABLE_NETWORK=1 && corepack enable && corepack prepare yarn@4.10.2 --activate && yarn install --production --immutable --inline-builds; \
+      export YARN_IGNORE_PATH=1 YARN_ENABLE_NETWORK=1 && corepack enable && corepack prepare yarn@4.10.2 --activate && yarn install --immutable --inline-builds; \
     fi
 
 # Copy compiled artifacts
