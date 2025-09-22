@@ -262,6 +262,81 @@ kill "$(cat .dev-server.pid)" 2>/dev/null || node .yarn/releases/yarn-4.10.2.cjs
 
 ---
 
+## 11) One-command verifier script (recommended)
+
+Use this script to run the full, CloudPC-safe flow in one command: offline install, optional build, start server with vendored Yarn, write logs with rotation, and perform health checks.
+
+Path: `scripts/verify-yarn-berry.sh`
+
+What it does
+- Kills existing dev processes and frees ports 3000–3005
+- Removes `node_modules` and performs an install from the vendored cache (offline by default)
+- Optionally builds the app (`yarn build`), can be skipped
+- Starts the dev server using the vendored Yarn CLI (no global Yarn/Corepack required)
+- Writes detailed logs to `./logs` with rotation (falls back to `/tmp/moe-app-logs` if needed)
+- Verifies availability of `/` and `/health` and prints SUCCESS/FAILED
+
+Usage
+```bash
+scripts/verify-yarn-berry.sh --help
+```
+
+Flags
+- `--port <port>`: Port to run on (default: 3000)
+- `--allow-network`: Allow network during `yarn install` (default is offline: `YARN_ENABLE_NETWORK=0`)
+- `--skip-build`: Skip the `yarn build` step (keeps dev flow fast)
+
+Environment variables
+- `LOG_DIR`: Where to write logs (default `./logs`, fallback `/tmp/moe-app-logs`)
+- `VENDORED_YARN`: Path to vendored Yarn CLI (default `.yarn/releases/yarn-4.10.2.cjs`)
+
+Examples
+- Offline install + start (default):
+```bash
+scripts/verify-yarn-berry.sh
+```
+- Run on port 4000 and log to a custom directory:
+```bash
+LOG_DIR=./logs/dev-4000 scripts/verify-yarn-berry.sh --port 4000
+```
+- Allow network during install (only on a machine where outbound access is permitted, e.g., to refresh cache):
+```bash
+scripts/verify-yarn-berry.sh --allow-network
+```
+- Skip build (install + start + health checks only):
+```bash
+scripts/verify-yarn-berry.sh --skip-build
+```
+
+Outputs and files
+- PID file: `.dev-server.pid`
+- Application logs: `./logs/app-dev-YYYYMMDD-HHMMSS.log` and symlink `./logs/app-dev.log`
+- Launcher logs: `./logs/dev-launch-YYYYMMDD-HHMMSS.out` and symlink `./logs/dev-launch.out`
+- Rotation: keeps the 10 most recent files of each type
+
+Exit codes
+- `0`: SUCCESS (server up and `/` + `/health` returned 200)
+- `1`: FAILED (server failed to start or health checks failed)
+
+Stopping the server
+```bash
+# Stop by PID
+kill "$(cat .dev-server.pid)" 2>/dev/null || true
+
+# Or stop via script target using vendored Yarn
+node .yarn/releases/yarn-4.10.2.cjs run kill-dev || true
+```
+
+Windows notes
+- Use the PowerShell snippet in section 5 or 9 to free ports 3000–3005.
+- When running the script inside WSL, the Linux port-freeing commands will work as shown.
+
+CI/CD and Docker
+- You can invoke this script in CI (with `--skip-build` if you build separately).
+- For Docker, prefer the Dockerfile pattern in section 7; this script is mainly for host/dev verification.
+
+---
+
 Tips
 - Keep `.yarn/cache` and `yarn.lock` committed for deterministic, offline installs.
 - Avoid committing `node_modules`.
