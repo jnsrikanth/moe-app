@@ -233,6 +233,10 @@ health_checks() {
   if [[ $ok_health -eq 0 ]]; then ok "/health returned 200"; else err "/health returned $code_health"; fi
 
   if [[ $ok_root -eq 0 && $ok_health -eq 0 ]]; then
+    # Print dashboard confirmation and show page content (truncated)
+    printf "%b\n" "${GREEN}DASHBOARD OK${NC}"
+    info "Dashboard content (first 80 lines):"
+    curl -s "http://127.0.0.1:$PORT_USED/" | sed -n '1,80p' || true
     return 0
   else
     return 1
@@ -251,7 +255,15 @@ summary_failure() {
   printf "%b\n" "Last 80 lines of launcher log:"; tail -n 80 "$LAUNCH_LOG" 2>/dev/null || true
 }
 
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || { err "Missing required command: $1"; exit 1; }
+}
+
 main() {
+  # Pre-flight checks for locked-down environments
+  require_cmd node
+  require_cmd curl
+
   info "Project root: $ROOT_DIR"
   info "Using Yarn: ${YARN_CMD[*]}"
   info "Log dir: $LOG_DIR_RESOLVED"
