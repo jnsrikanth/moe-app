@@ -22,3 +22,16 @@ uploaded-datasets/
 
 # Development files
 .dev-server.pid
+
+# Yarn Berry
+# Ignore all of .yarn except the pieces needed for zero-installs
+.yarn/*
+!.yarn/releases
+!.yarn/plugins
+!.yarn/sdks
+!.yarn/versions
+!.yarn/cache
+!.yarn/patches
+
+# Yarn PnP artifacts (we're using nodeLinker: node-modules, but ignore if present)
+.pnp.*
