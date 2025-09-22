@@ -1,65 +1,28 @@
-import { type ExpertAgent, type Request, type RouterMetrics, type SystemLog, type SystemMetrics } from "../shared/schema.js";
+import fs from 'fs';
+import path from 'path';
+import { type ExpertAgent, type Request, type RouterMetrics, type SystemLog, type SystemMetrics } from '../shared/schema.js';
+import { type IStorage, type RouterConfig, type AgentRegistryEntry, type DatasetMeta, type AgentHealth } from './storage.js';
 
-export interface DatasetMeta {
-  id: string;
-  name: string;
-  source: 'url' | 'inline' | 'upload';
-  url?: string;
-  records?: number;
-  sizeBytes?: number;
-  createdAt: string;
+interface Snapshot {
+  expertAgents: ExpertAgent[];
+  requests: Request[];
+  routerMetrics: RouterMetrics;
+  systemLogs: SystemLog[];
+  systemMetrics: SystemMetrics;
+  routerConfig: RouterConfig;
+  agentRegistry: AgentRegistryEntry[];
+  datasets: DatasetMeta[];
+  version: number;
+  savedAt: string;
 }
 
-export interface IStorage {
-  getExpertAgents(): Promise<ExpertAgent[]>;
-  updateExpertAgent(id: string, updates: Partial<ExpertAgent>): Promise<ExpertAgent>;
-  getRequests(): Promise<Request[]>;
-  addRequest(request: Request): Promise<Request>;
-  updateRequest(id: string, updates: Partial<Request>): Promise<Request>;
-  getRouterMetrics(): Promise<RouterMetrics>;
-  updateRouterMetrics(updates: Partial<RouterMetrics>): Promise<RouterMetrics>;
-  getSystemLogs(): Promise<SystemLog[]>;
-  addSystemLog(log: SystemLog): Promise<SystemLog>;
-  getSystemMetrics(): Promise<SystemMetrics>;
-  updateSystemMetrics(updates: Partial<SystemMetrics>): Promise<SystemMetrics>;
-  getRouterConfig(): Promise<RouterConfig>;
-  setRouterConfig(updates: Partial<RouterConfig>): Promise<RouterConfig>;
-  // Agent Registry
-  registerAgent(agent: AgentRegistryEntry): Promise<AgentRegistryEntry>;
-  heartbeatAgent(id: string, meta?: Partial<AgentRegistryEntry>): Promise<AgentRegistryEntry | null>;
-  getAgentRegistry(): Promise<AgentRegistryEntry[]>;
-  removeAgent(id: string): Promise<boolean>;
-  // Datasets
-  listDatasets(): Promise<DatasetMeta[]>;
-  registerDataset(meta: Omit<DatasetMeta, 'id' | 'createdAt'> & { id?: string }): Promise<DatasetMeta>;
-  removeDataset(id: string): Promise<boolean>;
+function ensureDir(p: string) {
+  if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 }
 
-export type RouterEngine = 'llm' | 'ml' | 'rules' | 'hybrid';
+function nowIso() { return new Date().toISOString(); }
 
-export interface RouterConfig {
-  engine: RouterEngine;
-  modelLoaded: boolean;
-  modelVersion?: string;
-  latencyP50Ms?: number;
-  latencyP95Ms?: number;
-  costEstimatePerDecision?: number;
-}
-
-export type AgentHealth = 'healthy' | 'unhealthy';
-export interface AgentRegistryEntry {
-  id: string;
-  name: string;
-  capabilities: string[];
-  // Optional richer metadata for routing and display
-  type?: string;
-  model?: string;
-  routingHints?: string[];
-  lastSeen: number; // epoch ms
-  health: AgentHealth;
-}
-
-export class MemStorage implements IStorage {
+export class JsonFileStorage implements IStorage {
   private expertAgents: Map<string, ExpertAgent>;
   private requests: Map<string, Request>;
   private routerMetrics: RouterMetrics;
@@ -69,22 +32,68 @@ export class MemStorage implements IStorage {
   private agentRegistry: Map<string, AgentRegistryEntry>;
   private datasets: Map<string, DatasetMeta>;
 
-  constructor() {
+  private file: string;
+
+  constructor(filePath?: string) {
+    this.file = filePath || path.resolve(process.cwd(), 'data', 'moe-data.json');
+    ensureDir(path.dirname(this.file));
+
+    // Initialize empty maps/arrays
     this.expertAgents = new Map();
     this.requests = new Map();
     this.systemLogs = [];
     this.agentRegistry = new Map();
     this.datasets = new Map();
-    this.routerConfig = {
-      engine: (process.env.ROUTER_ENGINE as RouterEngine) || 'llm',
-      modelLoaded: false,
-      modelVersion: undefined,
-      latencyP50Ms: undefined,
-      latencyP95Ms: undefined,
-      costEstimatePerDecision: undefined,
+    this.routerMetrics = {
+      contextSize: '128K tokens',
+      responseThreshold: '5.0s',
+      loadBalancing: true,
+      routingAlgorithm: 'Weighted Round-Robin',
+      cpuUsage: 0,
+      memoryUsage: '0GB',
+      tokensPerMinute: 0,
+      queueDepth: 0,
+      activeRequests: 0,
+      avgResponseTime: 0,
     };
-    
-    // Initialize with default expert agents
+    this.systemMetrics = {
+      throughput: 0,
+      avgResponseTime: 0,
+      successRate: 100,
+      errorRate: 0,
+      requestsPerMinute: 0,
+    };
+    this.routerConfig = {
+      engine: (process.env.ROUTER_ENGINE as RouterConfig['engine']) || 'llm',
+      modelLoaded: false,
+    };
+
+    // Try loading existing snapshot; otherwise seed defaults
+    if (fs.existsSync(this.file)) {
+      try {
+        const raw = fs.readFileSync(this.file, 'utf8');
+        const snap = JSON.parse(raw) as Snapshot;
+        // Restore
+        for (const a of snap.expertAgents || []) this.expertAgents.set(a.id, a);
+        for (const r of snap.requests || []) this.requests.set(r.id, r);
+        for (const e of snap.agentRegistry || []) this.agentRegistry.set(e.id, e);
+        for (const d of snap.datasets || []) this.datasets.set(d.id, d);
+        this.routerMetrics = snap.routerMetrics || this.routerMetrics;
+        this.systemLogs = snap.systemLogs || [];
+        this.systemMetrics = snap.systemMetrics || this.systemMetrics;
+        this.routerConfig = snap.routerConfig || this.routerConfig;
+      } catch (e) {
+        // If corrupted, re-seed defaults and overwrite on first save
+        this.seedDefaults();
+        this.save();
+      }
+    } else {
+      this.seedDefaults();
+      this.save();
+    }
+  }
+
+  private seedDefaults() {
     const defaultAgents: ExpertAgent[] = [
       {
         id: 'credit-agent',
@@ -136,44 +145,37 @@ export class MemStorage implements IStorage {
       },
     ];
 
-    defaultAgents.forEach(agent => {
-      this.expertAgents.set(agent.id, agent);
-    });
-
-    // Auto-register default agents into Agent Registry so Admin UI sees them immediately
     const now = Date.now();
-    defaultAgents.forEach(agent => {
-      this.agentRegistry.set(agent.id, {
-        id: agent.id,
-        name: agent.name,
-        capabilities: [agent.type],
-        type: agent.type,
-        model: agent.model,
+    for (const a of defaultAgents) {
+      this.expertAgents.set(a.id, a);
+      this.agentRegistry.set(a.id, {
+        id: a.id,
+        name: a.name,
+        capabilities: [a.type],
+        type: a.type,
+        model: a.model,
         lastSeen: now,
         health: 'healthy',
       });
-    });
+    }
+  }
 
-    this.routerMetrics = {
-      contextSize: '128K tokens',
-      responseThreshold: '5.0s',
-      loadBalancing: true,
-      routingAlgorithm: 'Weighted Round-Robin',
-      cpuUsage: 67,
-      memoryUsage: '4.2GB',
-      tokensPerMinute: 2100,
-      queueDepth: 3,
-      activeRequests: 12,
-      avgResponseTime: 2.3,
+  private save() {
+    const snap: Snapshot = {
+      expertAgents: Array.from(this.expertAgents.values()),
+      requests: Array.from(this.requests.values()),
+      routerMetrics: this.routerMetrics,
+      systemLogs: this.systemLogs,
+      systemMetrics: this.systemMetrics,
+      routerConfig: this.routerConfig,
+      agentRegistry: Array.from(this.agentRegistry.values()),
+      datasets: Array.from(this.datasets.values()),
+      version: 1,
+      savedAt: nowIso(),
     };
-
-    this.systemMetrics = {
-      throughput: 847,
-      avgResponseTime: 2.1,
-      successRate: 99.2,
-      errorRate: 0.8,
-      requestsPerMinute: 8.5,
-    };
+    const tmp = this.file + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(snap, null, 2), 'utf8');
+    fs.renameSync(tmp, this.file);
   }
 
   async getExpertAgents(): Promise<ExpertAgent[]> {
@@ -183,7 +185,6 @@ export class MemStorage implements IStorage {
   async updateExpertAgent(id: string, updates: Partial<ExpertAgent>): Promise<ExpertAgent> {
     let agent = this.expertAgents.get(id);
     if (!agent) {
-      // Upsert behavior: create a new expert agent from registry metadata if missing
       const reg = this.agentRegistry.get(id);
       const type = reg?.type || (id.split('-')[0] || 'generic');
       agent = {
@@ -203,9 +204,10 @@ export class MemStorage implements IStorage {
         isScaling: false,
       } as ExpertAgent;
     }
-    const updatedAgent = { ...agent, ...updates } as ExpertAgent;
-    this.expertAgents.set(id, updatedAgent);
-    return updatedAgent;
+    const merged = { ...agent, ...updates } as ExpertAgent;
+    this.expertAgents.set(id, merged);
+    this.save();
+    return merged;
   }
 
   async getRequests(): Promise<Request[]> {
@@ -214,17 +216,17 @@ export class MemStorage implements IStorage {
 
   async addRequest(request: Request): Promise<Request> {
     this.requests.set(request.id, request);
+    this.save();
     return request;
   }
 
   async updateRequest(id: string, updates: Partial<Request>): Promise<Request> {
-    const request = this.requests.get(id);
-    if (!request) {
-      throw new Error(`Request with id ${id} not found`);
-    }
-    const updatedRequest = { ...request, ...updates };
-    this.requests.set(id, updatedRequest);
-    return updatedRequest;
+    const existing = this.requests.get(id);
+    if (!existing) throw new Error(`Request ${id} not found`);
+    const merged = { ...existing, ...updates } as Request;
+    this.requests.set(id, merged);
+    this.save();
+    return merged;
   }
 
   async getRouterMetrics(): Promise<RouterMetrics> {
@@ -233,15 +235,18 @@ export class MemStorage implements IStorage {
 
   async updateRouterMetrics(updates: Partial<RouterMetrics>): Promise<RouterMetrics> {
     this.routerMetrics = { ...this.routerMetrics, ...updates };
+    this.save();
     return this.routerMetrics;
   }
 
   async getSystemLogs(): Promise<SystemLog[]> {
-    return this.systemLogs.slice(-50); // Return last 50 logs
+    return this.systemLogs;
   }
 
   async addSystemLog(log: SystemLog): Promise<SystemLog> {
     this.systemLogs.push(log);
+    if (this.systemLogs.length > 1000) this.systemLogs.shift();
+    this.save();
     return log;
   }
 
@@ -251,26 +256,22 @@ export class MemStorage implements IStorage {
 
   async updateSystemMetrics(updates: Partial<SystemMetrics>): Promise<SystemMetrics> {
     this.systemMetrics = { ...this.systemMetrics, ...updates };
+    this.save();
     return this.systemMetrics;
   }
 
   async getRouterConfig(): Promise<RouterConfig> {
-    // Reflect any runtime env override for engine
-    const envEngine = (process.env.ROUTER_ENGINE as RouterEngine) || this.routerConfig.engine;
+    const envEngine = (process.env.ROUTER_ENGINE as RouterConfig['engine']) || this.routerConfig.engine;
     return { ...this.routerConfig, engine: envEngine };
   }
 
   async setRouterConfig(updates: Partial<RouterConfig>): Promise<RouterConfig> {
-    // Update in-memory config
     this.routerConfig = { ...this.routerConfig, ...updates };
-    // If engine updated, mirror to process.env for immediate effect
-    if (updates.engine) {
-      process.env.ROUTER_ENGINE = updates.engine;
-    }
+    if (updates.engine) process.env.ROUTER_ENGINE = updates.engine;
+    this.save();
     return this.routerConfig;
   }
 
-  // Agent Registry Implementation
   async registerAgent(agent: AgentRegistryEntry): Promise<AgentRegistryEntry> {
     const now = Date.now();
     const entry: AgentRegistryEntry = {
@@ -284,6 +285,7 @@ export class MemStorage implements IStorage {
       health: 'healthy',
     };
     this.agentRegistry.set(entry.id, entry);
+    this.save();
     return entry;
   }
 
@@ -291,33 +293,29 @@ export class MemStorage implements IStorage {
     const existing = this.agentRegistry.get(id);
     if (!existing) return null;
     const now = Date.now();
-    const updated: AgentRegistryEntry = {
-      ...existing,
-      ...meta,
-      lastSeen: now,
-      health: 'healthy',
-    };
+    const updated: AgentRegistryEntry = { ...existing, ...meta, lastSeen: now, health: 'healthy' };
     this.agentRegistry.set(id, updated);
+    this.save();
     return updated;
   }
 
   async getAgentRegistry(): Promise<AgentRegistryEntry[]> {
     const now = Date.now();
-    // mark stale as unhealthy if > 30s since lastSeen
     const entries = Array.from(this.agentRegistry.values()).map(e => {
       const healthy = now - e.lastSeen < 30000;
       return { ...e, health: healthy ? 'healthy' : 'unhealthy' as AgentHealth };
     });
-    // persist updated health states back into map
     for (const e of entries) this.agentRegistry.set(e.id, e);
+    this.save();
     return entries;
   }
 
   async removeAgent(id: string): Promise<boolean> {
-    return this.agentRegistry.delete(id);
+    const ok = this.agentRegistry.delete(id);
+    this.save();
+    return ok;
   }
 
-  // Dataset registry
   async listDatasets(): Promise<DatasetMeta[]> {
     return Array.from(this.datasets.values());
   }
@@ -331,42 +329,16 @@ export class MemStorage implements IStorage {
       url: meta.url,
       records: meta.records,
       sizeBytes: meta.sizeBytes,
-      createdAt: new Date().toISOString(),
+      createdAt: nowIso(),
     };
     this.datasets.set(id, entry);
+    this.save();
     return entry;
   }
 
   async removeDataset(id: string): Promise<boolean> {
-    return this.datasets.delete(id);
+    const ok = this.datasets.delete(id);
+    this.save();
+    return ok;
   }
 }
-
-// Factory: choose storage backend via env
-// STORAGE=sqlite will persist to data/moe.db (or SQLITE_PATH)
-const STORAGE_BACKEND = (process.env.STORAGE || '').toLowerCase();
-let storageImpl: IStorage;
-
-if (STORAGE_BACKEND === 'sqlite') {
-  try {
-    const { SqliteStorage } = await import('./sqlite-storage.js');
-    const dbPath = process.env.SQLITE_PATH; // optional override
-    storageImpl = new SqliteStorage(dbPath);
-  } catch (e) {
-    console.error('[storage] STORAGE=sqlite requested but sqlite backend is unavailable. Falling back to in-memory.', e);
-    storageImpl = new MemStorage();
-  }
-} else if (STORAGE_BACKEND === 'json') {
-  try {
-    const { JsonFileStorage } = await import('./json-storage.js');
-    const filePath = process.env.JSON_STORE_PATH;
-    storageImpl = new JsonFileStorage(filePath);
-  } catch (e) {
-    console.error('[storage] STORAGE=json requested but json backend failed to initialize. Falling back to in-memory.', e);
-    storageImpl = new MemStorage();
-  }
-} else {
-  storageImpl = new MemStorage();
-}
-
-export const storage = storageImpl;
