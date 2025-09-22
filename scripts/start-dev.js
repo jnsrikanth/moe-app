@@ -111,39 +111,80 @@ class DevServerManager {
     
     // Update environment file
     await this.updateEnvFile(port);
-    
-    // Start the server
-    const serverProcess = spawn('npx', ['tsx', 'server/index.ts'], {
+
+    const envBlock = {
+      ...process.env,
+      PORT: String(port ?? ''),
+      NODE_ENV: 'development'
+    };
+
+    // Helper to write PID only when available
+    const writePidIfAvailable = (child) => {
+      if (typeof child.pid === 'number' && Number.isFinite(child.pid)) {
+        try {
+          fs.writeFileSync(PID_FILE, child.pid.toString());
+        } catch (e) {
+          console.warn('⚠️  Could not write PID file:', e?.message || e);
+        }
+      } else {
+        console.warn('⚠️  PID not available; skipping PID file write');
+      }
+    };
+
+    // Try launching via npx first; fall back to npm run dev:direct if spawn fails
+    const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+
+    let serverProcess = spawn(npxCmd, ['tsx', 'server/index.ts'], {
       stdio: 'inherit',
-      env: {
-        ...process.env,
-        PORT: port.toString(),
-        NODE_ENV: 'development'
+      env: envBlock,
+    });
+
+    let launched = false;
+
+    const attachCommonHandlers = (child, label) => {
+      child.on('spawn', () => {
+        launched = true;
+        writePidIfAvailable(child);
+        this.serverProcess = child;
+        this.currentPort = port;
+        console.log(`✅ Server started successfully via ${label}!`);
+        console.log(`🌐 Frontend: http://localhost:${port}`);
+        console.log(`🔌 API: http://localhost:${port}/api`);
+        console.log(`🧪 Test Groq: http://localhost:${port}/api/test-groq`);
+        console.log(`📊 Dashboard: http://localhost:${port}`);
+      });
+
+      child.on('error', (error) => {
+        console.error(`❌ Server process error (${label}):`, error?.message || error);
+        this.cleanup();
+      });
+
+      child.on('exit', (code, signal) => {
+        console.log(`🛑 Server process exited (${label}) with code ${code}, signal ${signal}`);
+        this.cleanup();
+      });
+    };
+
+    attachCommonHandlers(serverProcess, 'npx tsx');
+
+    // If npx could not be found or failed to spawn immediately, try fallback
+    serverProcess.once('error', (err) => {
+      if (launched) return;
+      console.warn('⚠️  Falling back to "npm run dev:direct" (ensure tsx is installed as a devDependency).');
+      try {
+        const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+        const fallback = spawn(npmCmd, ['run', 'dev:direct'], {
+          stdio: 'inherit',
+          env: envBlock,
+        });
+        attachCommonHandlers(fallback, 'npm run dev:direct');
+        serverProcess = fallback;
+      } catch (fallbackErr) {
+        console.error('❌ Fallback launch failed:', fallbackErr?.message || fallbackErr);
+        throw fallbackErr;
       }
     });
 
-    // Save PID
-    fs.writeFileSync(PID_FILE, serverProcess.pid.toString());
-    
-    serverProcess.on('error', (error) => {
-      console.error('❌ Server process error:', error);
-      this.cleanup();
-    });
-
-    serverProcess.on('exit', (code, signal) => {
-      console.log(`🛑 Server process exited with code ${code}, signal ${signal}`);
-      this.cleanup();
-    });
-
-    this.serverProcess = serverProcess;
-    this.currentPort = port;
-    
-    console.log(`✅ Server started successfully!`);
-    console.log(`🌐 Frontend: http://localhost:${port}`);
-    console.log(`🔌 API: http://localhost:${port}/api`);
-    console.log(`🧪 Test Groq: http://localhost:${port}/api/test-groq`);
-    console.log(`📊 Dashboard: http://localhost:${port}`);
-    
     return serverProcess;
   }
 
