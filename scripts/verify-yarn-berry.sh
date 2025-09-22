@@ -173,23 +173,27 @@ install_offline() {
 
 build_app() {
   if [[ "$SKIP_BUILD" -eq 1 ]]; then
-    info "Skipping build step per flag"
-    return 0
+    if [[ -f dist/server.mjs ]]; then
+      info "Skipping build per flag (dist/server.mjs exists)"
+      return 0
+    else
+      warn "--skip-build set but dist/server.mjs missing; building anyway"
+    fi
   fi
-  info "Building app..."
-  "${YARN_CMD[@]}" build
+  info "Building server (compiled JS run, no tsx)..."
+  node scripts/build-server.mjs || { err "Build failed"; exit 1; }
   ok "Build complete"
 }
 
 start_server() {
-  info "Starting dev server on 0.0.0.0:$PORT (logs: $APP_LOG)"
+  info "Starting compiled server on 0.0.0.0:$PORT (logs: $APP_LOG)"
   rotate_logs
   if command -v nohup >/dev/null 2>&1; then
-    HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
-      nohup "${YARN_CMD[@]}" dev >>"$LAUNCH_LOG" 2>&1 &
+    NODE_ENV=production HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
+      nohup node dist-server/server/index.js >>"$LAUNCH_LOG" 2>&1 &
   else
-    HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
-      "${YARN_CMD[@]}" dev >>"$LAUNCH_LOG" 2>&1 &
+    NODE_ENV=production HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
+      node dist-server/server/index.js >>"$LAUNCH_LOG" 2>&1 &
   fi
   echo $! > .dev-server.pid
   sleep 3
