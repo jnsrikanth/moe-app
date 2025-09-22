@@ -1,8 +1,9 @@
 import { RouterStrategy, RoutingDecision } from './RouterStrategy';
 import path from 'path';
 import { storage } from '../storage';
+import { routeRequest } from '../python-ml-client';
 
-// Lightweight MLP with optional ONNX runtime. Falls back to deterministic stub when model not available.
+// Lightweight MLP with optional ONNX runtime, preferring local Python router when available.
 export class MLPRouterStrategy implements RouterStrategy {
   private modelLoaded = false;
   private modelVersion: string | undefined;
@@ -13,6 +14,17 @@ export class MLPRouterStrategy implements RouterStrategy {
   }
 
   private async tryLoadModel() {
+    // Prefer local Python router as "loaded" indicator if reachable
+    try {
+      const res = await routeRequest({ type: 'health-probe' });
+      if (res && Array.isArray(res.selected_agents)) {
+        this.modelLoaded = true;
+        this.modelVersion = process.env.LOCAL_ML_LABEL || 'mlp-local';
+        await storage.setRouterConfig({ modelLoaded: true, modelVersion: this.modelVersion });
+        return;
+      }
+    } catch {}
+
     const modelPath = process.env.MLP_MODEL_PATH;
     if (!modelPath) {
       await storage.setRouterConfig({ modelLoaded: false, modelVersion: undefined });
@@ -35,6 +47,17 @@ export class MLPRouterStrategy implements RouterStrategy {
   }
 
   async route(request: any): Promise<RoutingDecision> {
+    // Try Python router first
+    try {
+      const res = await routeRequest(request);
+      if (res && Array.isArray(res.selected_agents)) {
+        return {
+          selectedAgents: res.selected_agents,
+          reasoning: res.reasoning || `python ${(process.env.LOCAL_ML_LABEL || 'mlp-local')}`,
+        };
+      }
+    } catch {}
+
     const text = `${request?.type ?? ''}`.toLowerCase();
 
     let selected: string[];
@@ -44,8 +67,8 @@ export class MLPRouterStrategy implements RouterStrategy {
     else selected = ['credit-agent', 'fraud-agent'];
 
     const reasoning = this.modelLoaded
-      ? `MLP router (ONNX loaded: ${this.modelVersion})`
-      : 'MLP stub routing (no ONNX model loaded)';
+      ? `MLP router (${this.modelVersion || 'loaded'})`
+      : 'MLP stub routing (no local model)';
 
     return {
       selectedAgents: selected,

@@ -6,6 +6,7 @@ import { RulesRouterStrategy } from './router/RulesRouterStrategy';
 import { LLMRouterStrategy } from './router/LLMRouterStrategy';
 import { MLPRouterStrategy } from './router/MLPRouterStrategy';
 import { generateText } from './vertex';
+import { analyzeCredit as pyAnalyzeCredit, analyzeFraud as pyAnalyzeFraud, analyzeESG as pyAnalyzeESG } from './python-ml-client';
 
 interface AgentInstance {
   id: string;
@@ -382,6 +383,18 @@ Respond in JSON format.`;
       };
     }
 
+    // Prefer local Python ML
+    if ((process.env.AGENT_USE_PY_LOCAL || '1') === '1') {
+      const res = await pyAnalyzeCredit(request).catch(() => null);
+      if (res && typeof res === 'object') {
+        return {
+          agentType: 'credit',
+          analysis: JSON.stringify(res),
+          processingTime: Date.now(),
+        };
+      }
+    }
+
     const content = await this.withRateLimit(() =>
       generateText({ model: AGENT_MODELS.credit, prompt })
     );
@@ -412,6 +425,18 @@ Respond in JSON format.`;
         analysis: 'Kill switch active: simulated fraud analysis.',
         processingTime: Date.now(),
       };
+    }
+
+    // Prefer local Python ML
+    if ((process.env.AGENT_USE_PY_LOCAL || '1') === '1') {
+      const res = await pyAnalyzeFraud(request).catch(() => null);
+      if (res && typeof res === 'object') {
+        return {
+          agentType: 'fraud',
+          analysis: JSON.stringify(res),
+          processingTime: Date.now(),
+        };
+      }
     }
 
     const content = await this.withRateLimit(() =>
@@ -447,6 +472,18 @@ Respond in JSON format.`;
       };
     }
 
+    // Prefer local Python ML
+    if ((process.env.AGENT_USE_PY_LOCAL || '1') === '1') {
+      const res = await pyAnalyzeESG(request).catch(() => null);
+      if (res && typeof res === 'object') {
+        return {
+          agentType: 'esg',
+          analysis: JSON.stringify(res),
+          processingTime: Date.now(),
+        };
+      }
+    }
+
     const content = await this.withRateLimit(() =>
       generateText({ model: AGENT_MODELS.esg, prompt })
     );
@@ -472,12 +509,12 @@ Respond in JSON format.`;
 
     const modelLabelFromRaw = (m?: string, type?: string): string => {
       if (!m) {
-        // Fall back to type-specific friendly labels matching initial defaults
-        if (type === 'credit' || type === 'esg') return 'Groq Llama 3.1 70B';
-        if (type === 'fraud') return 'Groq Mixtral 8x7B';
-        return 'Groq Llama 3.1 8B';
+        // Prefer local label if unspecified
+        return process.env.LOCAL_ML_LABEL || 'mlp-local';
       }
       const s = m.toLowerCase();
+      // Respect local model labels and do not remap to Groq names
+      if (s.includes('mlp') || s.includes('local') || s.includes('python')) return m;
       if (s.includes('mixtral') || s.includes('8x7b')) return 'Groq Mixtral 8x7B';
       if (s.includes('70b')) return 'Groq Llama 3.1 70B';
       if (s.includes('8b')) return 'Groq Llama 3.1 8B';
@@ -720,9 +757,10 @@ Respond in JSON format.`;
 export let realMoESystem: RealMoESystem;
 
 // Exported model constants so the API and UI can reflect real-time labels
-export const ROUTER_MODEL = process.env.ROUTER_MODEL || 'gemini-2.5-flash-lite';
+export const ROUTER_MODEL = process.env.ROUTER_MODEL || (process.env.LOCAL_ML_LABEL || 'mlp-local');
+const DEFAULT_AGENT_LABEL = (process.env.AGENT_MODEL_DEFAULT || process.env.UI_MODEL_LABEL || process.env.LOCAL_ML_LABEL || process.env.VERTEX_AI_MODEL || 'mlp-local');
 export const AGENT_MODELS: Record<'credit' | 'fraud' | 'esg', string> = {
-  credit: process.env.AGENT_MODEL_CREDIT || 'gemini-2.5-flash-lite',
-  fraud: process.env.AGENT_MODEL_FRAUD || 'gemini-2.5-flash-lite',
-  esg: process.env.AGENT_MODEL_ESG || 'gemini-2.5-flash-lite',
+  credit: process.env.AGENT_MODEL_CREDIT || DEFAULT_AGENT_LABEL,
+  fraud: process.env.AGENT_MODEL_FRAUD || DEFAULT_AGENT_LABEL,
+  esg: process.env.AGENT_MODEL_ESG || DEFAULT_AGENT_LABEL,
 };

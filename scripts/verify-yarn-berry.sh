@@ -34,11 +34,15 @@ Options:
   --allow-network        Allow network during yarn install (default: offline)
   --build                Force server compile step (default: no-build; run via tsx)
   --clean                Remove node_modules before install (default: keep)
+  --ml-host <host>       Local Python ML host (default: 127.0.0.1)
+  --ml-port <port>       Local Python ML port (default: 5055)
+  --no-local-ml          Do not start local Python ML service (default: start if available)
   --help                 Show this help
 
 Environment variables:
   LOG_DIR                Where to write logs (default: ./logs, fallback: /tmp/moe-app-logs)
-  VENDORED_YARN         Path to vendored Yarn CLI (default: .yarn/releases/yarn-4.10.2.cjs)
+  VENDORED_YARN          Path to vendored Yarn CLI (default: .yarn/releases/yarn-4.10.2.cjs)
+  LOCAL_ML_LABEL         Display label for local ML (default: mlp-local)
 EOF
 }
 
@@ -46,6 +50,10 @@ PORT=3000
 ALLOW_NETWORK=0
 BUILD=0
 CLEAN=0
+ML_HOST=${PY_LOCAL_HOST:-127.0.0.1}
+ML_PORT=${PY_LOCAL_PORT:-5055}
+ENABLE_LOCAL_ML=1
+LOCAL_ML_LABEL_DEFAULT=${LOCAL_ML_LABEL:-mlp-local}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -57,6 +65,12 @@ while [[ $# -gt 0 ]]; do
       BUILD=1; shift;;
     --clean)
       CLEAN=1; shift;;
+    --ml-host)
+      ML_HOST="$2"; shift 2;;
+    --ml-port)
+      ML_PORT="$2"; shift 2;;
+    --no-local-ml)
+      ENABLE_LOCAL_ML=0; shift;;
     --help|-h)
       usage; exit 0;;
     *)
@@ -185,6 +199,53 @@ build_app() {
   fi
 }
 
+start_local_ml() {
+  if [[ "$ENABLE_LOCAL_ML" -ne 1 ]]; then
+    warn "Skipping local Python ML startup (--no-local-ml)"
+    return 0
+  fi
+  # If port already in use, assume service is running
+  if lsof -ti:"$ML_PORT" >/dev/null 2>&1; then
+    ok "Local Python ML appears to be running on $ML_HOST:$ML_PORT"
+    return 0
+  fi
+  # Find python
+  local PY_BIN=""
+  for c in python3 python; do
+    if command -v "$c" >/dev/null 2>&1; then PY_BIN="$c"; break; fi
+  done
+  if [[ -z "$PY_BIN" ]]; then
+    warn "Python not found; enabling GROQ_KILL_SWITCH to avoid cloud LLM calls"
+    export GROQ_KILL_SWITCH=1
+    return 0
+  fi
+  local ML_APP_DIR="$ROOT_DIR/python-ml-service"
+  if [[ ! -f "$ML_APP_DIR/app.py" ]]; then
+    warn "python-ml-service/app.py not found; skipping local ML"
+    export GROQ_KILL_SWITCH=1
+    return 0
+  fi
+  local ML_LOG="$LOG_DIR_RESOLVED/python-ml-service-$TIMESTAMP.log"
+  info "Starting local Python ML on http://$ML_HOST:$ML_PORT (label=$LOCAL_ML_LABEL_DEFAULT)"
+  (
+    cd "$ML_APP_DIR"
+    PY_LOCAL_HOST="$ML_HOST" PY_LOCAL_PORT="$ML_PORT" LOCAL_ML_LABEL="$LOCAL_ML_LABEL_DEFAULT" \
+      "$PY_BIN" app.py >>"$ML_LOG" 2>&1 & echo $! > "$ML_LOG.pid"
+  )
+  sleep 0.5
+  if curl -sf "http://$ML_HOST:$ML_PORT/health" >/dev/null 2>&1; then
+    ok "Local Python ML is up"
+  else
+    warn "Local Python ML health check failed (continuing). See $ML_LOG"
+    # Still prefer to avoid LLM calls
+    export GROQ_KILL_SWITCH=1
+  fi
+  # Export URL for Node server
+  export PY_LOCAL_HOST="$ML_HOST"
+  export PY_LOCAL_PORT="$ML_PORT"
+  export PY_LOCAL_URL="http://$ML_HOST:$ML_PORT"
+}
+
 start_server() {
   rotate_logs
   # Default: run via local tsx CLI (no-build mode)
@@ -194,28 +255,32 @@ start_server() {
   esac
   info "Starting via local tsx CLI on 0.0.0.0:$PORT (logs: $APP_LOG)"
   if command -v nohup >/dev/null 2>&1; then
-    HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
+    HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" ROUTER_ENGINE=ml AGENT_USE_PY_LOCAL=1 LOCAL_ML_LABEL="$LOCAL_ML_LABEL_DEFAULT" \
+      PY_LOCAL_HOST="$ML_HOST" PY_LOCAL_PORT="$ML_PORT" PY_LOCAL_URL="http://$ML_HOST:$ML_PORT" GROQ_KILL_SWITCH="${GROQ_KILL_SWITCH:-1}" \
       nohup "$TSX_BIN" server/index.ts >>"$LAUNCH_LOG" 2>&1 &
   else
-    HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
+    HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" ROUTER_ENGINE=ml AGENT_USE_PY_LOCAL=1 LOCAL_ML_LABEL="$LOCAL_ML_LABEL_DEFAULT" \
+      PY_LOCAL_HOST="$ML_HOST" PY_LOCAL_PORT="$ML_PORT" PY_LOCAL_URL="http://$ML_HOST:$ML_PORT" GROQ_KILL_SWITCH="${GROQ_KILL_SWITCH:-1}" \
       "$TSX_BIN" server/index.ts >>"$LAUNCH_LOG" 2>&1 &
   fi
   echo $! > .dev-server.pid
   sleep 3
   PID=$(cat .dev-server.pid 2>/dev/null || true)
-  if [[ -n "${PID}" ]] && ps -p "$PID" >/dev/null 2>&1; then
-    ok "Server started via local tsx CLI (pid=$PID)"
-    return 0
-  fi
+    if [[ -n "${PID}" ]] && ps -p "$PID" >/dev/null 2>&1; then
+      ok "Server started via local tsx CLI (pid=$PID)"
+      return 0
+    fi
 
   # If tsx path fails and build is enabled, try compiled JS as a fallback
   if [[ "$BUILD" -eq 1 ]]; then
     warn "tsx CLI start failed; trying compiled server fallback"
     if command -v nohup >/dev/null 2>&1; then
-      NODE_ENV=production HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
+      NODE_ENV=production HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" ROUTER_ENGINE=ml AGENT_USE_PY_LOCAL=1 LOCAL_ML_LABEL="$LOCAL_ML_LABEL_DEFAULT" \
+        PY_LOCAL_HOST="$ML_HOST" PY_LOCAL_PORT="$ML_PORT" PY_LOCAL_URL="http://$ML_HOST:$ML_PORT" GROQ_KILL_SWITCH="${GROQ_KILL_SWITCH:-1}" \
         nohup node dist-server/server/index.js >>"$LAUNCH_LOG" 2>&1 &
     else
-      NODE_ENV=production HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
+      NODE_ENV=production HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" ROUTER_ENGINE=ml AGENT_USE_PY_LOCAL=1 LOCAL_ML_LABEL="$LOCAL_ML_LABEL_DEFAULT" \
+        PY_LOCAL_HOST="$ML_HOST" PY_LOCAL_PORT="$ML_PORT" PY_LOCAL_URL="http://$ML_HOST:$ML_PORT" GROQ_KILL_SWITCH="${GROQ_KILL_SWITCH:-1}" \
         node dist-server/server/index.js >>"$LAUNCH_LOG" 2>&1 &
     fi
     echo $! > .dev-server.pid
@@ -295,6 +360,12 @@ health_checks() {
 summary_success() {
   printf "%b\n" "${GREEN}SUCCESS:${NC} $PROJECT_NAME is running on http://localhost:$PORT"
   printf "%b\n" "Logs: $APP_LOG (app), $LAUNCH_LOG (launcher)"
+  # Print model labels snapshot
+  local models
+  models=$(curl -s "http://127.0.0.1:$PORT/api/models" || true)
+  if [[ -n "$models" ]]; then
+    printf "%b\n" "Model labels: $models"
+  fi
 }
 
 summary_failure() {
@@ -331,6 +402,8 @@ ensure_env_defaults() {
   upsert_env_kv HOST 0.0.0.0
   upsert_env_kv TRUST_PROXY 1
   upsert_env_kv PORT "$PORT"
+  upsert_env_kv ROUTER_ENGINE ml
+  upsert_env_kv LOCAL_ML_LABEL "$LOCAL_ML_LABEL_DEFAULT"
 
   # If STORAGE is not present, default to JSON persistence (no native builds)
   if ! grep -qE '^STORAGE=' .env 2>/dev/null; then
@@ -364,16 +437,19 @@ fi
   info "Step 3: Install dependencies"
   install_offline
 
-  info "Step 4: Build (can be skipped with --skip-build)"
+  info "Step 4: Start local Python ML (default)"
+  start_local_ml
+
+  info "Step 5: Build (can be skipped with --skip-build)"
   build_app
 
-  info "Step 5: Ensure .env defaults"
+  info "Step 6: Ensure .env defaults"
   ensure_env_defaults
 
-  info "Step 6: Start server"
+  info "Step 7: Start server"
   start_server || { summary_failure; exit 1; }
 
-  info "Step 7: Health checks"
+  info "Step 8: Health checks"
   if health_checks; then
     summary_success
   else

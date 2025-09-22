@@ -64,7 +64,7 @@ export class JsonFileStorage implements IStorage {
       requestsPerMinute: 0,
     };
     this.routerConfig = {
-      engine: (process.env.ROUTER_ENGINE as RouterConfig['engine']) || 'llm',
+      engine: (process.env.ROUTER_ENGINE as RouterConfig['engine']) || 'ml',
       modelLoaded: false,
     };
 
@@ -82,6 +82,28 @@ export class JsonFileStorage implements IStorage {
         this.systemLogs = snap.systemLogs || [];
         this.systemMetrics = snap.systemMetrics || this.systemMetrics;
         this.routerConfig = snap.routerConfig || this.routerConfig;
+
+        // Optional one-time correction of model labels if UI_MODEL_LABEL is provided
+        const desired = (process.env.UI_MODEL_LABEL || '').trim();
+        if (desired) {
+          let changed = false;
+          for (const [id, agent] of this.expertAgents) {
+            if (agent.model && agent.model !== desired) {
+              // Update only if previous label was the old hardcoded default
+              if (agent.model.includes('Gemini') || agent.model.toLowerCase().includes('flash')) {
+                agent.model = desired; changed = true;
+              }
+            }
+          }
+          for (const [id, entry] of this.agentRegistry) {
+            if (entry.model && entry.model !== desired) {
+              if (entry.model.includes('Gemini') || entry.model.toLowerCase().includes('flash')) {
+                entry.model = desired; changed = true;
+              }
+            }
+          }
+          if (changed) this.save();
+        }
       } catch (e) {
         // If corrupted, re-seed defaults and overwrite on first save
         this.seedDefaults();
@@ -94,14 +116,22 @@ export class JsonFileStorage implements IStorage {
   }
 
   private seedDefaults() {
+    const defaultModelLabel = ((): string => {
+      const explicit = (process.env.UI_MODEL_LABEL || process.env.LOCAL_ML_LABEL || '').trim();
+      if (explicit) return explicit;
+      const id = (process.env.VERTEX_AI_MODEL || '').trim();
+      if (id) return id;
+      return 'mlp-local';
+    })();
+
     const defaultAgents: ExpertAgent[] = [
       {
         id: 'credit-agent',
         name: 'Credit Check Agent',
         type: 'credit',
         status: 'idle',
-        model: 'Google Gemini 2.5 Flash Lite',
-        parameters: '2.5 Flash Lite',
+        model: defaultModelLabel,
+        parameters: '',
         cpuUsage: 15,
         memoryUsage: '2.8GB',
         tokensPerMinute: 890,
@@ -116,8 +146,8 @@ export class JsonFileStorage implements IStorage {
         name: 'Fraud Detection Agent',
         type: 'fraud',
         status: 'idle',
-        model: 'Google Gemini 2.5 Flash Lite',
-        parameters: '2.5 Flash Lite',
+        model: defaultModelLabel,
+        parameters: '',
         cpuUsage: 12,
         memoryUsage: '2.1GB',
         tokensPerMinute: 670,
@@ -132,8 +162,8 @@ export class JsonFileStorage implements IStorage {
         name: 'ESG Analysis Agent',
         type: 'esg',
         status: 'idle',
-        model: 'Google Gemini 2.5 Flash Lite',
-        parameters: '2.5 Flash Lite',
+        model: defaultModelLabel,
+        parameters: '',
         cpuUsage: 10,
         memoryUsage: '2.3GB',
         tokensPerMinute: 540,

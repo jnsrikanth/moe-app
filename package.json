@@ -12,7 +12,8 @@
     "build:railway": "npm run build",
     "check": "tsc",
     "db:push": "drizzle-kit push",
-    "kill-dev": "pkill -f 'tsx server/index.ts' || lsof -ti:3000,3001,3002,3003,3004,3005 | xargs kill -9 || echo 'No processes to kill'"
+    "kill-dev": "pkill -f 'tsx server/index.ts' || lsof -ti:3000,3001,3002,3003,3004,3005 | xargs kill -9 || echo 'No processes to kill'",
+    "ml:py": "bash scripts/start-python-ml.sh"
   },
   "dependencies": {
     "@google-cloud/vertexai": "^1.1.0",
