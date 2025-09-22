@@ -1,22 +1,33 @@
-# Use Node 20 for compatibility with tsx and modern libs
-FROM node:20-alpine AS base
+# Multi-stage build using Yarn Berry zero-install and compiled runtime
+
+# Build stage
+FROM node:20-slim AS builder
+WORKDIR /build
+
+# Install dependencies offline from vendored Yarn cache
+COPY package.json yarn.lock .yarnrc.yml .yarn/ ./
+ENV YARN_ENABLE_NETWORK=0
+RUN node .yarn/releases/yarn-4.10.2.cjs install --immutable --inline-builds
+
+# Copy source and build
+COPY server/ server/
+COPY client/ client/
+COPY tsconfig*.json ./
+RUN node .yarn/releases/yarn-4.10.2.cjs run build
+
+# Runtime stage
+FROM node:20-slim
 WORKDIR /app
 
-# Install OS deps if needed (curl for health checks)
-RUN apk add --no-cache bash curl
+# Install production deps offline
+COPY package.json yarn.lock .yarnrc.yml .yarn/ ./
+ENV YARN_ENABLE_NETWORK=0 NODE_ENV=production PORT=8080 HOST=0.0.0.0
+RUN node .yarn/releases/yarn-4.10.2.cjs install --production --immutable --inline-builds
 
-# Copy package manifests and install deps
-COPY package*.json ./
-RUN npm install --silent
+# Copy compiled artifacts
+COPY --from=builder /build/dist-server dist-server/
+COPY --from=builder /build/dist dist/
 
-# Copy source and build frontend
-COPY . .
-RUN npm run build --silent
-
-# Expose port (Cloud Run expects 8080 by default)
-ENV PORT=8080
-ENV NODE_ENV=production
-
-# Start the server (tsx runs TS directly)
-CMD ["npm", "run", "start"]
+EXPOSE 8080
+CMD ["node", "dist-server/server/index.js"]
 

@@ -1,0 +1,17 @@
+substitutions:
+  _REGION: us-central1
+  _REPOSITORY: moe-app
+  _IMAGE: python-ml
+  _TAG: manual
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Build python-ml image'
+    args: ['build', '-f', 'python-ml-service/Dockerfile', '-t', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:${_TAG}', 'python-ml-service']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push python-ml image'
+    args: ['push', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:${_TAG}']
+
+images:
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:${_TAG}'
