@@ -4,13 +4,12 @@
 FROM node:20-slim AS builder
 WORKDIR /build
 
-# Install dependencies offline from vendored Yarn cache
+# Install dependencies (allow network in build to fetch Linux artifacts if cache misses)
 COPY package.json yarn.lock .yarnrc.yml .yarn/ ./
-ENV YARN_ENABLE_NETWORK=0
 RUN if [ -f .yarn/releases/yarn-4.10.2.cjs ]; then \
-      node .yarn/releases/yarn-4.10.2.cjs install --immutable --inline-builds; \
+      YARN_ENABLE_NETWORK=1 node .yarn/releases/yarn-4.10.2.cjs install --immutable --inline-builds; \
     else \
-      export YARN_IGNORE_PATH=1 && corepack enable && corepack prepare yarn@4.10.2 --activate && yarn install --immutable --inline-builds; \
+      export YARN_IGNORE_PATH=1 YARN_ENABLE_NETWORK=1 && corepack enable && corepack prepare yarn@4.10.2 --activate && yarn install --immutable --inline-builds; \
     fi
 
 # Copy source and build
@@ -23,13 +22,13 @@ RUN node .yarn/releases/yarn-4.10.2.cjs run build
 FROM node:20-slim
 WORKDIR /app
 
-# Install production deps offline
+# Install production deps (allow network in build to fetch Linux artifacts if cache misses)
 COPY package.json yarn.lock .yarnrc.yml .yarn/ ./
-ENV YARN_ENABLE_NETWORK=0 NODE_ENV=production PORT=8080 HOST=0.0.0.0
+ENV NODE_ENV=production PORT=8080 HOST=0.0.0.0
 RUN if [ -f .yarn/releases/yarn-4.10.2.cjs ]; then \
-      node .yarn/releases/yarn-4.10.2.cjs install --production --immutable --inline-builds; \
+      YARN_ENABLE_NETWORK=1 node .yarn/releases/yarn-4.10.2.cjs install --production --immutable --inline-builds; \
     else \
-      export YARN_IGNORE_PATH=1 && corepack enable && corepack prepare yarn@4.10.2 --activate && yarn install --production --immutable --inline-builds; \
+      export YARN_IGNORE_PATH=1 YARN_ENABLE_NETWORK=1 && corepack enable && corepack prepare yarn@4.10.2 --activate && yarn install --production --immutable --inline-builds; \
     fi
 
 # Copy compiled artifacts
