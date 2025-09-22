@@ -210,15 +210,29 @@ health_checks() {
   local PORT_USED="$PORT"
   if [[ -f "$LAUNCH_LOG" ]]; then
     local chosen
+    # Common launcher messages
     chosen=$(grep -Eo 'Starting MoE server on port [0-9]+' "$LAUNCH_LOG" | awk '{print $6}' | tail -n1 || true)
     if [[ -z "$chosen" ]]; then
       chosen=$(grep -Eo 'Port [0-9]+ is available' "$LAUNCH_LOG" | awk '{print $2}' | tail -n1 || true)
     fi
+    # Also parse app log style messages if present in launcher log stream
+    if [[ -z "$chosen" ]]; then
+      chosen=$(grep -Eo 'Server running on [^:]+:([0-9]+)' "$LAUNCH_LOG" | sed -E 's/.*:([0-9]+)/\1/' | tail -n1 || true)
+    fi
     if [[ -n "$chosen" ]]; then PORT_USED="$chosen"; fi
+  fi
+  # Fallback: check latest app log marker if exists
+  if [[ -z "$chosen" && -f "$LOG_DIR_RESOLVED/app-dev.latest" ]]; then
+    local applog
+    applog=$(cat "$LOG_DIR_RESOLVED/app-dev.latest" 2>/dev/null || true)
+    if [[ -n "$applog" && -f "$applog" ]]; then
+      chosen=$(grep -Eo 'Server running on [^:]+:([0-9]+)' "$applog" | sed -E 's/.*:([0-9]+)/\1/' | tail -n1 || true)
+      if [[ -n "$chosen" ]]; then PORT_USED="$chosen"; fi
+    fi
   fi
 
   # wait up to 20s for /health to return 200
-  for i in {1..20}; do
+  for i in {1..60}; do
     code_health=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT_USED/health" || echo 000)
     if [[ "$code_health" == "200" ]]; then break; fi
     sleep 1
@@ -232,11 +246,18 @@ health_checks() {
   if [[ $ok_root -eq 0 ]]; then ok "/ returned 200"; else err "/ returned $code_root"; fi
   if [[ $ok_health -eq 0 ]]; then ok "/health returned 200"; else err "/health returned $code_health"; fi
 
+  # Always show dashboard response snippet for visibility
+  local dash_status
+  dash_status=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT_USED/" || echo 000)
   if [[ $ok_root -eq 0 && $ok_health -eq 0 ]]; then
-    # Print dashboard confirmation and show page content (truncated)
-    printf "%b\n" "${GREEN}DASHBOARD OK${NC}"
-    info "Dashboard content (first 80 lines):"
-    curl -s "http://127.0.0.1:$PORT_USED/" | sed -n '1,80p' || true
+    printf "%b\n" "${GREEN}DASHBOARD OK${NC} (HTTP $dash_status)"
+  else
+    err "DASHBOARD CHECK FAILED (HTTP $dash_status)"
+  fi
+  info "Dashboard content (first 80 lines):"
+  curl -s "http://127.0.0.1:$PORT_USED/" | sed -n '1,80p' || true
+
+  if [[ $ok_root -eq 0 && $ok_health -eq 0 ]]; then
     return 0
   else
     return 1
