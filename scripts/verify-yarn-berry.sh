@@ -32,7 +32,8 @@ Usage: $(basename "$0") [options]
 Options:
   --port <port>          Port to run on (default: 3000)
   --allow-network        Allow network during yarn install (default: offline)
-  --skip-build           Skip yarn build step (dev only)
+  --build                Force server compile step (default: no-build; run via tsx)
+  --clean                Remove node_modules before install (default: keep)
   --help                 Show this help
 
 Environment variables:
@@ -43,7 +44,8 @@ EOF
 
 PORT=3000
 ALLOW_NETWORK=0
-SKIP_BUILD=0
+BUILD=0
+CLEAN=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -51,8 +53,10 @@ while [[ $# -gt 0 ]]; do
       PORT="$2"; shift 2;;
     --allow-network)
       ALLOW_NETWORK=1; shift;;
-    --skip-build)
-      SKIP_BUILD=1; shift;;
+    --build)
+      BUILD=1; shift;;
+    --clean)
+      CLEAN=1; shift;;
     --help|-h)
       usage; exit 0;;
     *)
@@ -172,43 +176,23 @@ install_offline() {
 }
 
 build_app() {
-  if [[ "$SKIP_BUILD" -eq 1 ]]; then
-    if [[ -f dist/server.mjs ]]; then
-      info "Skipping build per flag (dist/server.mjs exists)"
-      return 0
-    else
-      warn "--skip-build set but dist/server.mjs missing; building anyway"
-    fi
+  if [[ "$BUILD" -eq 1 ]]; then
+    info "Building server (compiled JS run, no tsx)..."
+    node scripts/build-server.mjs || { err "Build failed"; exit 1; }
+    ok "Build complete"
+  else
+    info "No-build mode: running via local tsx CLI (skip compile)"
   fi
-  info "Building server (compiled JS run, no tsx)..."
-  node scripts/build-server.mjs || { err "Build failed"; exit 1; }
-  ok "Build complete"
 }
 
 start_server() {
-  info "Starting compiled server on 0.0.0.0:$PORT (logs: $APP_LOG)"
   rotate_logs
-  # Try compiled JS first
-  if command -v nohup >/dev/null 2>&1; then
-    NODE_ENV=production HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
-      nohup node dist-server/server/index.js >>"$LAUNCH_LOG" 2>&1 &
-  else
-    NODE_ENV=production HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
-      node dist-server/server/index.js >>"$LAUNCH_LOG" 2>&1 &
-  fi
-  echo $! > .dev-server.pid
-  sleep 3
-  PID=$(cat .dev-server.pid 2>/dev/null || true)
-  if [[ -n "${PID}" ]] && ps -p "$PID" >/dev/null 2>&1; then
-    ok "Server started (pid=$PID)"
-    return 0
-  fi
-  warn "Compiled server failed to start; trying local tsx CLI fallback"
-  # Fallback: run via local tsx binary (no npx/npm). Cross-platform bin path.
+  # Default: run via local tsx CLI (no-build mode)
   TSX_BIN="node_modules/.bin/tsx"
   case "$(uname -s 2>/dev/null)" in
     MINGW*|MSYS*|CYGWIN*) TSX_BIN="node_modules/.bin/tsx.cmd";;
   esac
+  info "Starting via local tsx CLI on 0.0.0.0:$PORT (logs: $APP_LOG)"
   if command -v nohup >/dev/null 2>&1; then
     HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
       nohup "$TSX_BIN" server/index.ts >>"$LAUNCH_LOG" 2>&1 &
@@ -222,10 +206,28 @@ start_server() {
   if [[ -n "${PID}" ]] && ps -p "$PID" >/dev/null 2>&1; then
     ok "Server started via local tsx CLI (pid=$PID)"
     return 0
-  else
-    err "Server failed to start (both compiled and tsx CLI); see $LAUNCH_LOG and $APP_LOG"
-    return 1
   fi
+
+  # If tsx path fails and build is enabled, try compiled JS as a fallback
+  if [[ "$BUILD" -eq 1 ]]; then
+    warn "tsx CLI start failed; trying compiled server fallback"
+    if command -v nohup >/dev/null 2>&1; then
+      NODE_ENV=production HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
+        nohup node dist-server/server/index.js >>"$LAUNCH_LOG" 2>&1 &
+    else
+      NODE_ENV=production HOST=0.0.0.0 TRUST_PROXY=1 PORT="$PORT" LOG_FILE="$APP_LOG" \
+        node dist-server/server/index.js >>"$LAUNCH_LOG" 2>&1 &
+    fi
+    echo $! > .dev-server.pid
+    sleep 3
+    PID=$(cat .dev-server.pid 2>/dev/null || true)
+    if [[ -n "${PID}" ]] && ps -p "$PID" >/dev/null 2>&1; then
+      ok "Server started (compiled) (pid=$PID)"
+      return 0
+    fi
+  fi
+  err "Server failed to start; see $LAUNCH_LOG and $APP_LOG"
+  return 1
 }
 
 health_checks() {
@@ -352,8 +354,12 @@ main() {
   info "Step 1: Kill existing dev servers and free ports"
   kill_existing || true
 
+if [[ "$CLEAN" -eq 1 ]]; then
   info "Step 2: Clean node_modules"
   rm -rf node_modules
+else
+  info "Step 2: Keep existing node_modules (use --clean to remove)"
+fi
 
   info "Step 3: Install dependencies"
   install_offline
