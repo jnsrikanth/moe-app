@@ -7,7 +7,11 @@ WORKDIR /build
 # Install dependencies offline from vendored Yarn cache
 COPY package.json yarn.lock .yarnrc.yml .yarn/ ./
 ENV YARN_ENABLE_NETWORK=0
-RUN node .yarn/releases/yarn-4.10.2.cjs install --immutable --inline-builds
+RUN if [ -f .yarn/releases/yarn-4.10.2.cjs ]; then \
+      node .yarn/releases/yarn-4.10.2.cjs install --immutable --inline-builds; \
+    else \
+      corepack enable && corepack prepare yarn@4.10.2 --activate && yarn install --immutable --inline-builds; \
+    fi
 
 # Copy source and build
 COPY server/ server/
@@ -22,7 +26,11 @@ WORKDIR /app
 # Install production deps offline
 COPY package.json yarn.lock .yarnrc.yml .yarn/ ./
 ENV YARN_ENABLE_NETWORK=0 NODE_ENV=production PORT=8080 HOST=0.0.0.0
-RUN node .yarn/releases/yarn-4.10.2.cjs install --production --immutable --inline-builds
+RUN if [ -f .yarn/releases/yarn-4.10.2.cjs ]; then \
+      node .yarn/releases/yarn-4.10.2.cjs install --production --immutable --inline-builds; \
+    else \
+      corepack enable && corepack prepare yarn@4.10.2 --activate && yarn install --production --immutable --inline-builds; \
+    fi
 
 # Copy compiled artifacts
 COPY --from=builder /build/dist-server dist-server/
