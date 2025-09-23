@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+# Moved to docker/moe_router.Dockerfile
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

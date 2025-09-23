@@ -67,12 +67,12 @@ build_push() {
   docker push "$image"
 }
 
-build_push moe-credit Dockerfile.credit
-build_push moe-fraud Dockerfile.fraud
-build_push moe-esg Dockerfile.esg
-build_push moe-router Dockerfile.router
+build_push moe-credit docker/credit.Dockerfile
+build_push moe-fraud docker/fraud.Dockerfile
+build_push moe-esg docker/esg.Dockerfile
+build_push moe-router docker/moe_router.Dockerfile
 if [ "$DEPLOY_DASHBOARD" = "1" ]; then
-  build_push moe-dashboard Dockerfile.dashboard
+build_push moe-dashboard docker/dashboard.Dockerfile
 fi
 
 # Deploy agents first

@@ -19,11 +19,11 @@ Prerequisites
 - Vendored wheels available under vendor/python/py311/wheels
 
 Files added in this repo
-- Dockerfile.router
-- Dockerfile.credit
-- Dockerfile.fraud
-- Dockerfile.esg
-- Dockerfile.dashboard
+- docker/moe_router.Dockerfile
+- docker/credit.Dockerfile
+- docker/fraud.Dockerfile
+- docker/esg.Dockerfile
+- docker/dashboard.Dockerfile
 - scripts/cloudrun_deploy.sh
 - .dockerignore (keeps images lean)
 
@@ -58,11 +58,11 @@ What the script does
 ```bash
 REPO_URI="$REGION-docker.pkg.dev/$PROJECT_ID/moe-repo"
 
-docker build -f Dockerfile.credit   -t "$REPO_URI/moe-credit:v1" . && docker push "$REPO_URI/moe-credit:v1"
-docker build -f Dockerfile.fraud    -t "$REPO_URI/moe-fraud:v1" .  && docker push "$REPO_URI/moe-fraud:v1"
-docker build -f Dockerfile.esg      -t "$REPO_URI/moe-esg:v1" .    && docker push "$REPO_URI/moe-esg:v1"
-docker build -f Dockerfile.router   -t "$REPO_URI/moe-router:v1" . && docker push "$REPO_URI/moe-router:v1"
-docker build -f Dockerfile.dashboard -t "$REPO_URI/moe-dashboard:v1" . && docker push "$REPO_URI/moe-dashboard:v1"
+docker build -f docker/credit.Dockerfile    -t "$REPO_URI/moe-credit:v1" . && docker push "$REPO_URI/moe-credit:v1"
+docker build -f docker/fraud.Dockerfile     -t "$REPO_URI/moe-fraud:v1" .  && docker push "$REPO_URI/moe-fraud:v1"
+docker build -f docker/esg.Dockerfile       -t "$REPO_URI/moe-esg:v1" .    && docker push "$REPO_URI/moe-esg:v1"
+docker build -f docker/moe_router.Dockerfile -t "$REPO_URI/moe-router:v1" . && docker push "$REPO_URI/moe-router:v1"
+docker build -f docker/dashboard.Dockerfile -t "$REPO_URI/moe-dashboard:v1" . && docker push "$REPO_URI/moe-dashboard:v1"
 ```
 
 - Deploy agents first and capture URLs (Cloud Run will print them):

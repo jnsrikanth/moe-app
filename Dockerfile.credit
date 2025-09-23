@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+# Moved to docker/credit.Dockerfile
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
