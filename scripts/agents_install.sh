@@ -2,22 +2,21 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-WHEELHOUSE="$ROOT_DIR/vendor/python/py311/wheels"
 RUN_DIR="$ROOT_DIR/.run"
-
 mkdir -p "$RUN_DIR"
 
-if [ ! -d "$WHEELHOUSE" ] || [ -z "$(ls -A "$WHEELHOUSE" 2>/dev/null || true)" ]; then
-  echo "ERROR: Wheelhouse is empty: $WHEELHOUSE. Run: python scripts/bake_wheels.py (with internet once)" >&2
-  exit 1
+# Resolve Python interpreter + wheelhouse via helper if not provided by caller
+if [ -z "${PY_BIN:-}" ] || [ -z "${WHEELHOUSE:-}" ] || [ -z "${PY_MM:-}" ]; then
+  # shellcheck source=/dev/null
+  source "$ROOT_DIR/scripts/python_env_resolver.sh"
 fi
 
-# Create venvs per agent
+# Create venvs per agent using the resolved interpreter
 create_venv() {
   local name="$1"
   local vdir="$ROOT_DIR/.venv/$name"
   if [ ! -d "$vdir" ]; then
-    python3 -m venv "$vdir"
+    "$PY_BIN" -m venv "$vdir"
   fi
   # shellcheck source=/dev/null
   source "$vdir/bin/activate"
@@ -44,4 +43,4 @@ pip install --no-index --find-links="$WHEELHOUSE" jinja2==3.1.4 python-multipart
 }
 deactivate || true
 
-echo "Python venvs installed with offline wheels."
+echo "Python venvs installed with offline wheels (interpreter: $($PY_BIN -V 2>&1))."

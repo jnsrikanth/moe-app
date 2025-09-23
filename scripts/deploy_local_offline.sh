@@ -34,18 +34,12 @@ if [ -f .env.local ]; then
 fi
 
 # -------- Pre-flight checks --------
-PYV=$(python3 -c 'import sys; print("%d.%d"%sys.version_info[:2])') || { echo "Python3 required" >&2; exit 1; }
-echo "Python version: $PYV"
-
-WHEELHOUSE="$ROOT_DIR/vendor/python/py311/wheels"
-if [ ! -d "$WHEELHOUSE" ] || [ -z "$(ls -A "$WHEELHOUSE" 2>/dev/null || true)" ]; then
-  echo "ERROR: Wheelhouse is empty: $WHEELHOUSE" >&2
-  echo "Populate wheels on a machine with internet, then commit them: python scripts/bake_wheels.py" >&2
-  exit 1
-fi
+# Resolve Python interpreter and wheelhouse via helper
+# shellcheck source=/dev/null
+source "$ROOT_DIR/scripts/python_env_resolver.sh"
 
 # -------- Install venvs from wheelhouse (offline) --------
-bash scripts/agents_install.sh
+PYTHON="$PY_BIN" bash scripts/agents_install.sh
 
 # -------- Start services (sequential, health-gated) --------
 # Ensure previous PIDs are stopped
