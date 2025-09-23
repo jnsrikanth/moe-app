@@ -42,6 +42,68 @@ except Exception:
     load_model = None  # type: ignore
     simple_router = None  # type: ignore
 
+# Optional local model (joblib) for gating (offline)
+try:
+    import joblib  # type: ignore
+except Exception:
+    joblib = None  # type: ignore
+
+# Lightweight file-backed bandit and decisions stores (offline)
+from pathlib import Path
+
+DATA_DIR = Path(os.getenv("DATA_DIR", "data")).resolve()
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+class BanditStore:
+    def __init__(self, file: Path = DATA_DIR / "py_bandit.json"):
+        self.file = file
+        self.state: Dict[str, Dict[str, float]] = {}
+        try:
+            if self.file.exists():
+                self.state = json.loads(self.file.read_text("utf-8"))
+        except Exception:
+            self.state = {}
+
+    def _ensure(self, agent_id: str):
+        if agent_id not in self.state:
+            self.state[agent_id] = {"n": 0.0, "reward": 0.0}
+
+    def ucb(self, agent_id: str, total_n: float) -> float:
+        self._ensure(agent_id)
+        n = max(1.0, float(self.state[agent_id]["n"]))
+        avg = float(self.state[agent_id]["reward"]) / n
+        bonus = (2.0 * (max(1.0, total_n)) ** 0.5) / (n ** 0.5)
+        return avg + bonus
+
+    def update(self, agent_id: str, reward: float):
+        self._ensure(agent_id)
+        self.state[agent_id]["n"] += 1.0
+        self.state[agent_id]["reward"] += float(reward)
+        try:
+            self.file.write_text(json.dumps(self.state, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+class DecisionStore:
+    def __init__(self, file: Path = DATA_DIR / "py_decisions.jsonl"):
+        self.file = file
+        self.file.parent.mkdir(parents=True, exist_ok=True)
+        if not self.file.exists():
+            try:
+                self.file.write_text("", encoding="utf-8")
+            except Exception:
+                pass
+
+    def append(self, record: Dict[str, Any]):
+        try:
+            with self.file.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
+
+bandit_store = BanditStore()
+decision_store = DecisionStore()
+
 # Configure logging
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
@@ -265,23 +327,213 @@ class RulesRouterStrategy(RouterStrategy):
             confidence=0.75
         )
 
+class MoEGatingRouterStrategy(RouterStrategy):
+    """True MoE gating with top-k selection.
+    Offline-friendly: uses rules + bandit; optionally a local joblib model (models/gating.joblib).
+    """
+    def __init__(self, top_k: int = 2, multi_margin: float = 0.15):
+        self.top_k = max(1, top_k)
+        self.multi_margin = max(0.0, float(multi_margin))
+        self.model = None
+        model_path = os.getenv("ROUTER_MODEL_PATH", "models/gating.joblib")
+        if joblib and os.path.exists(model_path):
+            try:
+                self.model = joblib.load(model_path)
+            except Exception:
+                self.model = None
+
+    def _base_features(self, request: AgentRequest) -> Dict[str, float]:
+        text = f"{request.type} {request.content}".lower()
+        meta = request.metadata or {}
+        feats: Dict[str, float] = {
+            "has_loan": float("loan" in text),
+            "has_credit": float("credit" in text),
+            "has_fraud": float("fraud" in text or "claim" in text or "suspicious" in text),
+            "has_esg": float("esg" in text or "investment" in text or "sustainability" in text),
+            # common numeric metadata, normalized lightly
+            "dti": float(meta.get("debt_to_income", meta.get("dti_mortgage", 0.0))),
+            "util": float(meta.get("credit_utilization", 0.0)),
+            "income": float(meta.get("annual_income", meta.get("annual_revenue", 0.0))) / 100000.0,
+            "amount": float(meta.get("loan_amount", meta.get("amount", 0.0))) / 100000.0,
+        }
+        return feats
+
+    def _expert_score(self, expert_id: str, feats: Dict[str, float], base: float) -> float:
+        # Bandit UCB adjustment
+        total_n = sum(v.get("n", 0.0) for v in bandit_store.state.values()) + 1.0
+        ucb = bandit_store.ucb(expert_id, total_n)
+        return base + 0.1 * ucb
+
+    async def route(self, request: AgentRequest) -> RoutingDecision:
+        # Gather candidates from registry
+        candidates = list(AGENT_REGISTRY.keys())
+        feats = self._base_features(request)
+
+        # Heuristic base by matching specialization
+        base_scores: Dict[str, float] = {}
+        for e in candidates:
+            et = AGENT_REGISTRY[e]["type"]
+            if et == "credit":
+                base = 1.0 * (feats["has_loan"] + feats["has_credit"] + (1.0 - min(1.0, feats["dti"])) + (1.0 - min(1.0, feats["util"])) )
+            elif et == "fraud":
+                base = 1.0 * (feats["has_fraud"] + min(1.0, feats["amount"]))
+            elif et == "esg":
+                base = 1.0 * (feats["has_esg"] + 0.5)
+            else:
+                base = 0.5
+            base_scores[e] = base
+
+        # Optional local model adjustment (if present)
+        if self.model is not None:
+            try:
+                import numpy as np  # type: ignore
+                X = []
+                keys = sorted(feats.keys())
+                for e in candidates:
+                    et = AGENT_REGISTRY[e]["type"]
+                    row = [feats[k] for k in keys]
+                    # simple one-hot for expert type appended
+                    row.extend([
+                        1.0 if et == "credit" else 0.0,
+                        1.0 if et == "fraud" else 0.0,
+                        1.0 if et == "esg" else 0.0,
+                    ])
+                    X.append(row)
+                P = self.model.predict_proba(np.array(X))
+                # If binary classifier, use column 1; if multiclass, take max prob as boost
+                for i, e in enumerate(candidates):
+                    boost = float(P[i][1]) if P.shape[1] > 1 else float(P[i][0])
+                    base_scores[e] += 0.5 * boost
+            except Exception:
+                pass
+
+        # Bandit adjustment and selection
+        scored = [(e, self._expert_score(e, feats, base_scores[e])) for e in candidates]
+        scored.sort(key=lambda t: t[1], reverse=True)
+        if scored:
+            top_score = scored[0][1]
+            selected = [e for e, s in scored if (top_score - s) <= self.multi_margin][: self.top_k]
+        else:
+            selected = []
+        reasoning = f"MoE gating: top-{self.top_k} within margin {self.multi_margin:.2f} by rules+bandit{' + model' if self.model is not None else ''}"
+        return RoutingDecision(request_id=request.id, selected_agents=selected or [candidates[0]] if candidates else [], reasoning=reasoning, confidence=0.85)
+
+
+def compute_final_decision(responses: Dict[str, Any]) -> Dict[str, str]:
+    # Parse agent responses looking for structured hints
+    joined = json.dumps(responses).lower()
+    if "final decision" in joined and ("approve" in joined or "approved" in joined):
+        return {"status": "Approved", "rationale": "Explicit approval in agent outputs."}
+    if "decline" in joined or "rejected" in joined:
+        return {"status": "Declined", "rationale": "Explicit decline in agent outputs."}
+
+    # Heuristics similar to TS runtime
+    fraud_prob = None
+    credit_risk = None
+    credit_score = None
+
+    # Scan per-agent details
+    try:
+        for aid, payload in responses.items():
+            text = json.dumps(payload)
+            # credit
+            m = re.search(r"\"credit_score\"\s*:\s*(\d{3})", text)
+            if m:
+                credit_score = int(m.group(1))
+            m2 = re.search(r"\"risk_level\"\s*:\s*\"(High|Medium|Low)\"", text, re.IGNORECASE)
+            if m2:
+                credit_risk = m2.group(1)
+            # fraud
+            m3 = re.search(r"(fraud_probability|risk_score)\"?\s*:\s*(\d+(?:\.\d+)?)", text)
+            if m3:
+                val = float(m3.group(2))
+                fraud_prob = val/100.0 if val > 1.0 else val
+    except Exception:
+        pass
+
+    # thresholds
+    if (fraud_prob is not None and fraud_prob >= 0.6) or (credit_risk and credit_risk.lower()=="high") or (credit_score is not None and credit_score < 600):
+        reasons = []
+        if fraud_prob is not None: reasons.append(f"Fraud probability {int(round(fraud_prob*100))}%")
+        if credit_risk: reasons.append(f"Credit risk {credit_risk}")
+        if credit_score is not None: reasons.append(f"Credit score {credit_score}")
+        return {"status": "Declined", "rationale": "; ".join(reasons) or "Risk thresholds not met."}
+
+    reasons = []
+    if fraud_prob is not None: reasons.append(f"Fraud probability {int(round(fraud_prob*100))}%")
+    if credit_risk: reasons.append(f"Credit risk {credit_risk}")
+    if credit_score is not None: reasons.append(f"Credit score {credit_score}")
+    return {"status": "Approved", "rationale": "; ".join(reasons) or "Heuristics indicate acceptable risk."}
+
+# Router config store (file-backed)
+class RouterConfigStore:
+    def __init__(self, file: Path = DATA_DIR / "py_router_config.json"):
+        self.file = file
+        self.data = {
+            "engine": os.getenv("ROUTER_STRATEGY", "rules"),
+            "moe_top_k": int(os.getenv("MOE_TOP_K", "2")),
+            "moe_mode": os.getenv("MOE_MODE", "balanced"),  # pure | balanced | minimal
+            "multi_margin": float(os.getenv("MOE_MULTI_MARGIN", "0.15")),
+        }
+        try:
+            if self.file.exists():
+                self.data.update(json.loads(self.file.read_text("utf-8")))
+        except Exception:
+            pass
+
+    def save(self):
+        try:
+            self.file.write_text(json.dumps(self.data, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+router_config = RouterConfigStore()
+
 # Main Router Orchestrator
 class RouterOrchestrator:
     """Main orchestrator for routing requests to agents"""
     
     def __init__(self, strategy: str = "llm"):
+        self.strategy_name = strategy
         self.strategy = self._get_strategy(strategy)
         self.active_requests: Dict[str, Any] = {}
         self.websocket_connections: List[WebSocket] = []
     
+    def set_strategy(self, name: str):
+        self.strategy_name = name
+        self.strategy = self._get_strategy(name)
+
+    def update_config(self, data: Dict[str, Any]):
+        # Update store and strategy live
+        router_config.data.update(data or {})
+        # Derive defaults by mode if provided
+        mode = router_config.data.get("moe_mode", "balanced")
+        if router_config.data.get("engine") in ("moe", "gating"):
+            if mode == "pure":
+                router_config.data["moe_top_k"] = max(2, int(router_config.data.get("moe_top_k", 3)))
+                router_config.data["multi_margin"] = max(0.2, float(router_config.data.get("multi_margin", 0.25)))
+            elif mode == "minimal":
+                router_config.data["moe_top_k"] = 1
+                router_config.data["multi_margin"] = 0.0
+            else:
+                router_config.data["moe_top_k"] = max(2, int(router_config.data.get("moe_top_k", 2)))
+                router_config.data["multi_margin"] = max(0.1, float(router_config.data.get("multi_margin", 0.15)))
+        router_config.save()
+        self.set_strategy(str(router_config.data.get("engine", self.strategy_name)))
+    
     def _get_strategy(self, strategy_name: str) -> RouterStrategy:
-        if strategy_name == "llm":
+        name = (strategy_name or "").lower()
+        if name == "llm":
             try:
                 return LLMRouterStrategy()
             except Exception:
                 return RulesRouterStrategy()
-        elif strategy_name == "ml":
+        elif name == "ml":
             return MLRouterStrategy()
+        elif name in ("moe", "gating"):
+            top_k = int(router_config.data.get("moe_top_k", 2))
+            margin = float(router_config.data.get("multi_margin", 0.15))
+            return MoEGatingRouterStrategy(top_k=top_k, multi_margin=margin)
         else:
             return RulesRouterStrategy()
     
@@ -309,17 +561,39 @@ class RouterOrchestrator:
         # Update request status
         self.active_requests[request.id]["responses"] = responses
         self.active_requests[request.id]["status"] = "completed"
+
+        # Compute final decision and persist
+        final = compute_final_decision(responses)
+        try:
+            decision_store.append({
+                "id": str(uuid4()),
+                "requestId": request.id,
+                "type": request.type,
+                "assignedAgents": routing_decision.selected_agents,
+                "routing": {"engine": os.getenv("ROUTER_STRATEGY", "rules"), "reasoning": routing_decision.reasoning},
+                "agentResults": [{"agentId": k, "raw": v} for k, v in responses.items()],
+                "final": final,
+                "createdAt": datetime.utcnow().isoformat()+"Z",
+            })
+            # Simple bandit reward: +1 for approval, 0 for decline
+            reward = 1.0 if final.get("status") == "Approved" else 0.0
+            for aid in routing_decision.selected_agents:
+                bandit_store.update(aid, reward)
+        except Exception:
+            pass
         
         # Broadcast completion
         await self._broadcast_update("request_completed", {
             "request_id": request.id,
-            "responses": responses
+            "responses": responses,
+            "final": final,
         })
         
         return {
             "request_id": request.id,
             "routing": routing_decision.dict(),
-            "responses": responses
+            "responses": responses,
+            "final": final,
         }
     
     async def _send_to_agents(self, request: AgentRequest, agent_ids: List[str]) -> Dict[str, Any]:
@@ -404,12 +678,63 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+    return {"status": "healthy", "timestamp": datetime.now().isoformat(), "router": router_config.data}
+
+@app.get("/router/config")
+async def get_router_config():
+    return router_config.data
+
+@app.post("/router/config")
+async def set_router_config(payload: Dict[str, Any]):
+    try:
+        eng = str(payload.get("engine", router_config.data.get("engine", "rules"))).lower()
+        top_k = int(payload.get("moe_top_k", router_config.data.get("moe_top_k", 2)))
+        mode = str(payload.get("moe_mode", router_config.data.get("moe_mode", "balanced"))).lower()
+        margin = float(payload.get("multi_margin", router_config.data.get("multi_margin", 0.15)))
+        router_config.data.update({"engine": eng, "moe_top_k": top_k, "moe_mode": mode, "multi_margin": margin})
+        orchestrator.update_config(router_config.data)
+        return router_config.data
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/agents")
 async def get_agents():
     """Get list of registered agents and their capabilities"""
     return AGENT_REGISTRY
+
+@app.get("/decisions")
+async def list_decisions(limit: int = 50):
+    """List recent decisions from the local decision store (JSONL)."""
+    file = decision_store.file
+    out = []
+    try:
+        if file.exists():
+            lines = file.read_text("utf-8").splitlines()
+            for line in lines[-max(1, min(500, limit)):]:
+                try:
+                    out.append(json.loads(line))
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return out
+
+@app.get("/decisions/{request_id}")
+async def get_decision(request_id: str):
+    """Fetch a single decision by request id from the JSONL store."""
+    file = decision_store.file
+    try:
+        if file.exists():
+            for line in reversed(file.read_text("utf-8").splitlines()):
+                try:
+                    obj = json.loads(line)
+                    if obj.get("requestId") == request_id:
+                        return obj
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    raise HTTPException(status_code=404, detail="Decision not found")
 
 @app.post("/route")
 async def route_request(request: AgentRequest):

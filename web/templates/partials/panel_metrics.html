@@ -32,7 +32,7 @@
         </table>
       </div>
       <div>
-        <div class="label" style="margin-bottom:8px">Agent Processing Counts</div>
+        <div class="label" style="margin-bottom:8px">Agent Processing Counts (Dashboard Logs)</div>
         <table class="table">
           <thead>
             <tr>
@@ -45,6 +45,55 @@
             <tr><td>Credit</td><td>{{ ag['credit-agent'] if 'credit-agent' in ag else 0 }}</td></tr>
             <tr><td>Fraud</td><td>{{ ag['fraud-agent'] if 'fraud-agent' in ag else 0 }}</td></tr>
             <tr><td>ESG</td><td>{{ ag['esg-agent'] if 'esg-agent' in ag else 0 }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="label" style="margin-bottom:8px">Router Decisions (from data/py_decisions.jsonl)</div>
+        <div style="margin-bottom:8px">
+          <button id="fetch-decisions" class="btn">View Recent Decisions</button>
+        </div>
+        <div id="decisions-box" class="card" style="display:none; max-height:180px; overflow:auto; padding:8px; margin-bottom:8px"></div>
+        <table class="table">
+          <tbody>
+            {% set r = metrics.router or {} %}
+            <tr><td>Total</td><td>{{ r.total or 0 }}</td></tr>
+            <tr><td>Approved</td><td class="ok">{{ r.approved or 0 }}</td></tr>
+            <tr><td>Declined</td><td class="down">{{ r.declined or 0 }}</td></tr>
+            <tr><td>Approval Rate</td><td>{{ ((r.approved or 0) * 100 // (r.total or 1)) }}%</td></tr>
+          </tbody>
+        </table>
+        <div class="label" style="margin:12px 0 8px">Router Per-Agent Selections</div>
+        <table class="table">
+          <tbody>
+            <tr><td>Credit</td><td>{{ (r.per_agent or {}).get('credit-agent', 0) }}</td></tr>
+            <tr><td>Fraud</td><td>{{ (r.per_agent or {}).get('fraud-agent', 0) }}</td></tr>
+            <tr><td>ESG</td><td>{{ (r.per_agent or {}).get('esg-agent', 0) }}</td></tr>
+          </tbody>
+        </table>
+        <div class="label" style="margin:12px 0 8px">Router Approval Trend</div>
+        <div style="background:#0d0d0d; border:1px solid #333; padding:4px; border-radius:6px; width:260px">
+          {% set trend = metrics.router_trend or {} %}
+          {% if trend.path %}
+            <svg width="240" height="48" viewBox="0 0 240 48">
+              <polyline fill="none" stroke="#4ade80" stroke-width="2" points="{{ trend.path }}" />
+            </svg>
+            <div class="muted" style="font-size:12px">Last approval rate: {{ trend.last_rate }}%</div>
+          {% else %}
+            <div class="muted">No data yet</div>
+          {% endif %}
+        </div>
+
+        <div class="label" style="margin:12px 0 8px">Router Engine Usage</div>
+        <table class="table">
+          <thead><tr><th>Engine</th><th>Count</th></tr></thead>
+          <tbody>
+            {% for eng, cnt in (r.engines or {}).items() %}
+              <tr><td>{{ eng|upper }}</td><td>{{ cnt }}</td></tr>
+            {% endfor %}
+            {% if not (r.engines or {}) %}
+              <tr><td colspan="2" class="muted">No data yet</td></tr>
+            {% endif %}
           </tbody>
         </table>
       </div>

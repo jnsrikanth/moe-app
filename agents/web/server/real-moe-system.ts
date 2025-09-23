@@ -32,11 +32,13 @@ export class RealMoESystem {
     // Initialize router orchestrator with strategies
     const rules = new RulesRouterStrategy();
     const llm = new LLMRouterStrategy((req: any) => this.makeRoutingDecision(req));
-    const mlp = new MLPRouterStrategy();
+    // Replace plain MLP with Bandit+Rules strategy for 'ml' engine slot
+    const { BanditRouterStrategy } = await import('./router/BanditRouterStrategy');
+    const bandit = new BanditRouterStrategy(rules);
     this.routerOrchestrator = new RouterOrchestrator(
       {
         llm: (r: any) => llm.route(r),
-        ml: mlp,
+        ml: bandit,
         rules,
       },
       () => process.env.ROUTER_ENGINE || 'llm'
@@ -604,6 +606,32 @@ Respond in JSON format.`;
       };
       await storage.addSystemLog(finalLog);
       this.broadcastUpdate('new_log', finalLog);
+
+      // Persist structured decision record
+      try {
+        const { decisionStore } = await import('./decision-store');
+        // Attempt to recover assigned agents for this request
+        const req = (await storage.getRequests()).find(r => r.id === requestId);
+        const assignedAgents = req?.assignedAgents || [];
+        const record = {
+          id: randomUUID(),
+          requestId,
+          type: req?.type,
+          assignedAgents,
+          routing: { engine: (process.env.ROUTER_ENGINE || 'llm'), reasoning: undefined },
+          agentResults: agentResults.map((r: any, idx: number) => ({
+            agentId: assignedAgents[idx],
+            agentType: r?.agentType,
+            summary: (typeof r?.analysis === 'string' ? String(r.analysis).slice(0, 200) : ''),
+            raw: (typeof r?.analysis === 'string' ? r.analysis : undefined),
+          })),
+          final: decision,
+          createdAt: new Date().toISOString(),
+          processingTimeMs: durationMs,
+        };
+        decisionStore.append(record);
+        this.broadcastUpdate('decision_recorded', record);
+      } catch {}
     } catch (e) {
       const fallbackLog = {
         id: randomUUID(),

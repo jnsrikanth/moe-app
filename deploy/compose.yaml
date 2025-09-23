@@ -9,8 +9,14 @@ services:
     environment:
       PORT: "8080"
       LOG_LEVEL: "WARNING"
+      # Optional tiny local LLM (llama-cpp) model path inside container
+      # LOCAL_LLM_MODEL: "/app/vendor/models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
     ports:
       - "8081:8080"
+    volumes:
+      - ../data:/app/data
+      # Uncomment if you commit a tiny GGUF to vendor/models via Git LFS
+      # - ../vendor/models:/app/vendor/models:ro
     healthcheck:
       test: ["CMD-SHELL", "python -c 'import urllib.request,sys,os; port=int(os.getenv(\"PORT\",\"8080\"));\nimport time;\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n;\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n;\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n;\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n;\n\n\n\n\n\n\n\n;\n\n\n\n\n\n\n;\n\nsys.exit(0) if urllib.request.urlopen(f'http://localhost:{port}/health', timeout=2) else sys.exit(1)'"]
       interval: 5s
@@ -25,8 +31,12 @@ services:
     environment:
       PORT: "8080"
       LOG_LEVEL: "WARNING"
+      # LOCAL_LLM_MODEL: "/app/vendor/models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
     ports:
       - "8082:8080"
+    volumes:
+      - ../data:/app/data
+      # - ../vendor/models:/app/vendor/models:ro
     healthcheck:
       test: ["CMD-SHELL", "python -c 'import urllib.request,sys,os; port=int(os.getenv(\"PORT\",\"8080\")); sys.exit(0) if urllib.request.urlopen(f'http://localhost:{port}/health', timeout=2) else sys.exit(1)'"]
       interval: 5s
@@ -41,8 +51,12 @@ services:
     environment:
       PORT: "8080"
       LOG_LEVEL: "WARNING"
+      # LOCAL_LLM_MODEL: "/app/vendor/models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
     ports:
       - "8083:8080"
+    volumes:
+      - ../data:/app/data
+      # - ../vendor/models:/app/vendor/models:ro
     healthcheck:
       test: ["CMD-SHELL", "python -c 'import urllib.request,sys,os; port=int(os.getenv(\"PORT\",\"8080\")); sys.exit(0) if urllib.request.urlopen(f'http://localhost:{port}/health', timeout=2) else sys.exit(1)'"]
       interval: 5s
@@ -61,8 +75,12 @@ services:
       FRAUD_AGENT_URL: "http://fraud:8080"
       ESG_AGENT_URL: "http://esg:8080"
       ROUTER_STRATEGY: "rules" # default to rules to avoid Vertex AI dependency during local testing
+      # STORAGE=file enables file-backed registry/decisions for compatible runtimes
+      STORAGE: "file"
     ports:
       - "8080:8080"
+    volumes:
+      - ../data:/app/data
     depends_on:
       credit:
         condition: service_healthy

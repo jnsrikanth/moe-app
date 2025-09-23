@@ -12,15 +12,7 @@
           {% endfor %}
         </select>
       </label>
-      <label class="field">
-        <span class="label">Type</span>
-        <select id="req_type" name="req_type">
-          <option value="credit" {% if last_request and last_request.type == 'credit' %}selected{% endif %}>Credit</option>
-          <option value="fraud" {% if last_request and last_request.type == 'fraud' %}selected{% endif %}>Fraud</option>
-          <option value="esg" {% if last_request and last_request.type == 'esg' %}selected{% endif %}>ESG</option>
-          <option value="general" {% if not last_request or last_request.type == 'general' %}selected{% endif %}>General</option>
-        </select>
-      </label>
+      <!-- Removed manual Type selector; routing is now decided by the MoE gating policy. -->
     </div>
     <label class="field">
       <span class="label">Content</span>
@@ -38,6 +30,7 @@
         <button name="content" value="please evaluate loan eligibility and credit score" class="btn ghost" type="submit">Sample Credit</button>
         <button name="content" value="suspicious transaction check for recent purchases" class="btn ghost" type="submit">Sample Fraud</button>
         <button name="content" value="environment and governance assessment summary" class="btn ghost" type="submit">Sample ESG</button>
+        <button name="content" value="loan approval with suspicious recent transactions and ESG concerns" class="btn ghost" type="submit">Mixed (Credit+Fraud+ESG)</button>
       </div>
       <span class="muted">Router: {{ router_url }}</span>
     </div>
@@ -46,12 +39,12 @@
     (function(){
       const templates = JSON.parse('{{ request_templates_json | safe }}');
       const tplSel = document.getElementById('template');
-      const typeSel = document.getElementById('req_type');
+      // const typeSel = document.getElementById('req_type');
       const contentEl = document.getElementById('content');
       const metaEl = document.getElementById('metadataPreview');
       function applyTemplate(key) {
         const t = templates[key] || templates['general'];
-        if (t && t.type) typeSel.value = t.type;
+        // routing type is inferred by the MoE router; no manual override in UI
         if (t && t.content) contentEl.value = t.content;
         if (metaEl) metaEl.textContent = JSON.stringify(t && t.metadata ? t.metadata : {}, null, 2);
       }

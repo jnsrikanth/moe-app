@@ -40,6 +40,13 @@ except Exception:
     load_model = None  # type: ignore
     simple_credit_score = None  # type: ignore
 
+# Optional Local LLM (llama-cpp)
+try:
+    from common.local_llm import get_local_llm
+    LOCAL_LLM = get_local_llm()
+except Exception:
+    LOCAL_LLM = None  # type: ignore
+
 # Configure logging
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
@@ -195,6 +202,19 @@ class CreditAnalyzer:
             )
         
         if not USE_VERTEX or not self.model:
+            # Try local LLM if configured
+            if LOCAL_LLM and LOCAL_LLM.available():
+                prompt = f"""You are a credit scoring expert. Respond ONLY with JSON for this schema:\n{{\n  \"score\": number (300-850),\n  \"rating\": \"Excellent|Good|Fair|Poor\",\n  \"confidence\": number (0..1),\n  \"factors\": string[]\n}}\n\nRequest: {request.content}\nMetadata: {json.dumps(request.metadata)}"""
+                text = LOCAL_LLM.generate_json(prompt)
+                try:
+                    data = json.loads(text) if text else {}
+                except Exception:
+                    data = {}
+                score = int(data.get("score", 680))
+                rating = str(data.get("rating", "Good"))
+                conf = float(data.get("confidence", 0.6))
+                factors = [str(x) for x in (data.get("factors") or ["Local LLM fallback"]) ]
+                return CreditScore(score=score, rating=rating, confidence=conf, factors=factors)
             # Offline deterministic default
             base = 680
             rating = "Good" if base >= 700 else ("Fair" if base >= 650 else "Poor")

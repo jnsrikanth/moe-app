@@ -318,6 +318,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Decisions API
+  app.get('/api/decisions', async (req, res) => {
+    try {
+      const limit = Math.max(1, Math.min(500, parseInt(String(req.query.limit || '50'), 10)));
+      const { decisionStore } = await import('./decision-store');
+      return res.json(decisionStore.list(limit));
+    } catch (e) {
+      return res.status(500).json({ error: 'Failed to list decisions' });
+    }
+  });
+
+  app.get('/api/decisions/:requestId', async (req, res) => {
+    try {
+      const rid = String(req.params.requestId);
+      const { decisionStore } = await import('./decision-store');
+      const rec = decisionStore.getByRequestId(rid);
+      if (!rec) return res.status(404).json({ error: 'Decision not found' });
+      return res.json(rec);
+    } catch (e) {
+      return res.status(500).json({ error: 'Failed to fetch decision' });
+    }
+  });
+
   // Router runtime configuration (dashboard toggle: LLM vs MLP vs Rules)
   app.get("/api/router-config", async (_req, res) => {
     try {

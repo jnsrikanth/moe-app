@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [isConnected, setIsConnected] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const { toast } = useToast();
+  const [decisionTrace, setDecisionTrace] = useState<any | null>(null);
   // Hooks must be declared before any early returns
   const [selectedType, setSelectedType] = useState<string | undefined>();
   const [selectedPriority, setSelectedPriority] = useState<'low' | 'medium' | 'high'>('medium');
@@ -194,6 +195,13 @@ export default function Dashboard() {
 
       subscribe('router_config_updated', (cfg: RouterConfig) => {
         setRouterConfig(cfg);
+      }),
+
+      // New: decision trace
+      subscribe('decision_recorded', (rec: any) => {
+        setDecisionTrace(rec);
+        // push to logs and set as latest request update
+        setSystemLogs(prev => [...prev, { id: rec.id, timestamp: rec.createdAt, level: 'success', message: `Decision recorded for ${rec.requestId}: ${rec.final.status}`, source: 'MoE Decision' } as any].slice(-50));
       }),
 
       subscribe('registry_updated', (entries: AgentRegistryEntry[]) => {
@@ -486,6 +494,7 @@ export default function Dashboard() {
               routerModelLabel={models?.routerModel}
               engine={(routerConfig?.engine || 'llm') as RouterEngine}
               routerConfig={routerConfig}
+              decisionTrace={decisionTrace}
             />
           </div>
 

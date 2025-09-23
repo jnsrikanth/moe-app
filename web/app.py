@@ -141,7 +141,70 @@ def aggregate_metrics() -> Dict[str, Any]:
                     continue
     except Exception:
         pass
-    return {"use_cases": use_cases, "agents": agents}
+    # Merge router decisions if available (data/py_decisions.jsonl)
+    try:
+        repo_root = ROOT.parent
+        decisions_file = repo_root / "data" / "py_decisions.jsonl"
+        router = {
+            "total": 0,
+            "approved": 0,
+            "declined": 0,
+            "per_agent": {"credit-agent": 0, "fraud-agent": 0, "esg-agent": 0},
+            "engines": {},
+        }
+        if decisions_file.exists():
+            lines = decisions_file.read_text("utf-8").splitlines()
+            # Collect chronological decisions (oldest->newest)
+            for line in lines:
+                try:
+                    obj = json.loads(line)
+                except Exception:
+                    continue
+                router["total"] += 1
+                final = (obj.get("final") or {})
+                st = str(final.get("status", "")).lower()
+                if st == "approved":
+                    router["approved"] += 1
+                elif st == "declined":
+                    router["declined"] += 1
+                for aid in obj.get("assignedAgents") or []:
+                    if aid in router["per_agent"]:
+                        router["per_agent"][aid] += 1
+                eng = ((obj.get("routing") or {}).get("engine") or "").lower() or "unknown"
+                router["engines"][eng] = router["engines"].get(eng, 0) + 1
+            # Build approval trend sparkline path (cumulative approval rate 0..100)
+            approvals = 0
+            series: list[int] = []
+            for line in lines[-100:]:  # last 100 records
+                try:
+                    obj = json.loads(line)
+                except Exception:
+                    continue
+                st = str(((obj.get("final") or {}).get("status") or "")).lower()
+                total_so_far = len(series) + 1
+                if st == "approved":
+                    approvals += 1
+                rate = int(round((approvals / max(1, total_so_far)) * 100))
+                series.append(rate)
+            # Build SVG path
+            w, h, m = 240.0, 48.0, 2.0
+            usable_h = h - 2*m
+            pts: list[str] = []
+            n = len(series)
+            if n >= 1:
+                step = (w - 2*m) / max(1, n - 1)
+                for i, val in enumerate(series):
+                    x = m + i * step
+                    y = h - m - (val/100.0) * usable_h
+                    pts.append(f"{x:.1f},{y:.1f}")
+            router_trend = {
+                "path": " ".join(pts) if pts else "",
+                "last_rate": (series[-1] if series else 0)
+            }
+            return {"use_cases": use_cases, "agents": agents, "router": router, "router_trend": router_trend}
+        return {"use_cases": use_cases, "agents": agents}
+    except Exception:
+        return {"use_cases": use_cases, "agents": agents}
 
 
 @app.get("/health", response_class=JSONResponse)
@@ -195,15 +258,34 @@ async def index(request: Request):
     })
 
 
+@app.get("/api/decisions")
+async def api_decisions(limit: int = 20):
+    repo_root = ROOT.parent
+    decisions_file = repo_root / "data" / "py_decisions.jsonl"
+    out = []
+    try:
+        if decisions_file.exists():
+            for line in reversed(decisions_file.read_text("utf-8").splitlines()):
+                try:
+                    out.append(json.loads(line))
+                except Exception:
+                    continue
+                if len(out) >= max(1, min(200, limit)):
+                    break
+    except Exception:
+        pass
+    return JSONResponse(out)
+
 @app.post("/route", response_class=HTMLResponse)
 async def route(request: Request,
                 template: str = Form("general"),
-                req_type: str = Form("general"),
+                req_type: str = Form("") ,
                 content: str = Form("")
                 ):
     # Resolve template defaults
     tpl = REQUEST_TEMPLATES.get(template, REQUEST_TEMPLATES["general"])
-    resolved_type = req_type or tpl["type"]
+    # If req_type missing/empty, use template type; otherwise honor provided type
+    resolved_type = (req_type or tpl["type"])
     resolved_content = content or tpl["content"]
     metadata = tpl.get("metadata", {})
 

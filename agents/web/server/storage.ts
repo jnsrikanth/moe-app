@@ -392,11 +392,15 @@ export class MemStorage implements IStorage {
 
 // Factory: choose storage backend via env
 // STORAGE=sqlite will persist to data/moe.db (or SQLITE_PATH)
+// STORAGE=file will persist registry to data/agent_registry.json
 const STORAGE_BACKEND = (process.env.STORAGE || '').toLowerCase();
 let storageImpl: IStorage;
 if (STORAGE_BACKEND === 'sqlite') {
   const dbPath = process.env.SQLITE_PATH; // optional override
   storageImpl = new SqliteStorage(dbPath);
+} else if (STORAGE_BACKEND === 'file') {
+  const { FileStorage } = await import('./file-storage.js');
+  storageImpl = new FileStorage();
 } else {
   storageImpl = new MemStorage();
 }

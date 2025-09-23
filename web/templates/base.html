@@ -22,5 +22,40 @@
     <footer class="container muted">
       <small>Offline • Python-only • Minimal</small>
     </footer>
+    <script>
+      (function(){
+        const btn = document.getElementById('fetch-decisions');
+        if (!btn) return;
+        const box = document.getElementById('decisions-box');
+        btn.addEventListener('click', async function(){
+          if (!box) return;
+          if (box.style.display === 'block') { box.style.display = 'none'; return; }
+          try {
+            const resp = await fetch('/api/decisions?limit=20');
+            const data = await resp.json();
+            box.innerHTML = '';
+            if (!Array.isArray(data) || data.length === 0) {
+              box.innerHTML = '<div class="muted">No decisions yet</div>';
+            } else {
+              const list = document.createElement('div');
+              list.style.fontSize = '12px';
+              list.style.lineHeight = '1.4';
+              data.forEach((d) => {
+                const div = document.createElement('div');
+                const status = (d.final && d.final.status) || '—';
+                const agents = (d.assignedAgents || []).join(', ');
+                div.innerHTML = `<span class="chip">${status}</span> <span class="mono">${d.requestId || ''}</span> • <span class="muted">${agents}</span>`;
+                list.appendChild(div);
+              });
+              box.appendChild(list);
+            }
+            box.style.display = 'block';
+          } catch (e) {
+            box.innerHTML = '<div class="down">Failed to load decisions</div>';
+            box.style.display = 'block';
+          }
+        });
+      })();
+    </script>
   </body>
 </html>

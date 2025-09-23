@@ -1,0 +1,80 @@
+<section class="card accent-router" style="margin-top:12px">
+  <div class="card-head"><h2>🧭 Router Settings</h2></div>
+  <div class="card-body">
+    <form id="router-form" class="grid form-grid">
+      <label class="field">
+        <span class="label">Engine</span>
+        <select id="engine">
+          <option value="rules">Rules</option>
+          <option value="ml">ML (Bandit)</option>
+          <option value="moe">MoE (Gating)</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="label">MoE Mode</span>
+        <select id="moe_mode">
+          <option value="minimal">Not-so-pure (Top-1)</option>
+          <option value="balanced" selected>Balanced (Top-2)</option>
+          <option value="pure">Pure MoE (Aggressive multi)</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="label">MoE Top-K</span>
+        <input id="moe_top_k" type="number" min="1" max="5" value="2" />
+      </label>
+      <label class="field">
+        <span class="label">Multi-agent Margin</span>
+        <input id="multi_margin" type="number" step="0.01" min="0" value="0.15" />
+      </label>
+    </form>
+    <div class="row" style="margin-top:8px; gap:8px; flex-wrap: wrap;">
+      <button id="apply-router" class="btn">Apply</button>
+      <span id="router-status" class="muted"></span>
+    </div>
+  </div>
+  <script>
+    (async function(){
+      const R = '{{ router_url }}';
+      const engEl = document.getElementById('engine');
+      const modeEl = document.getElementById('moe_mode');
+      const kEl = document.getElementById('moe_top_k');
+      const mEl = document.getElementById('multi_margin');
+      const statusEl = document.getElementById('router-status');
+
+      async function load() {
+        try {
+          const resp = await fetch(R + '/router/config');
+          if (!resp.ok) throw new Error('Router config not available');
+          const cfg = await resp.json();
+          engEl.value = (cfg.engine || 'rules');
+          modeEl.value = (cfg.moe_mode || 'balanced');
+          kEl.value = (cfg.moe_top_k || 2);
+          mEl.value = (cfg.multi_margin || 0.15);
+        } catch(e) {
+          statusEl.textContent = 'Router config unavailable';
+        }
+      }
+
+      async function save() {
+        const body = {
+          engine: engEl.value,
+          moe_mode: modeEl.value,
+          moe_top_k: parseInt(kEl.value || '2', 10),
+          multi_margin: parseFloat(mEl.value || '0.15'),
+        };
+        try {
+          const resp = await fetch(R + '/router/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          if (!resp.ok) throw new Error('Apply failed');
+          const out = await resp.json();
+          statusEl.textContent = 'Applied';
+          setTimeout(()=> statusEl.textContent='', 1500);
+        } catch(e) {
+          statusEl.textContent = 'Failed to apply';
+        }
+      }
+
+      document.getElementById('apply-router').addEventListener('click', save);
+      load();
+    })();
+  </script>
+</section>

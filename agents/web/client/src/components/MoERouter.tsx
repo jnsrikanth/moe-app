@@ -7,6 +7,7 @@ interface MoERouterProps {
   routerModelLabel?: string;
   engine?: RouterEngine;
   routerConfig?: RouterConfig | null;
+  decisionTrace?: any | null;
 }
 
 function friendlyModelLabel(raw?: string): string {
@@ -24,7 +25,7 @@ function friendlyModelLabel(raw?: string): string {
   return raw;
 }
 
-export function MoERouter({ metrics, realtimeLogs, routerModelLabel, engine, routerConfig }: MoERouterProps) {
+export function MoERouter({ metrics, realtimeLogs, routerModelLabel, engine, routerConfig, decisionTrace }: MoERouterProps) {
   const logContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -89,6 +90,57 @@ export function MoERouter({ metrics, realtimeLogs, routerModelLabel, engine, rou
           ))}
         </div>
       </div>
+
+      {/* Decision Trace (Step-by-step) */}
+      {decisionTrace && (
+        <div className="bg-gray-900 rounded-lg p-4 mb-4 border border-gray-700">
+          <div className="text-xs text-blue-400 font-bold mb-2">ROUTING & DECISION TRACE</div>
+          <div className="space-y-2 text-sm text-gray-200">
+            <div>
+              <div className="text-gray-400 text-xs">Request ID</div>
+              <div className="font-mono text-white">{decisionTrace.requestId}</div>
+            </div>
+            {decisionTrace.routing?.engine && (
+              <div>
+                <div className="text-gray-400 text-xs">Routing Engine</div>
+                <div>{String(decisionTrace.routing.engine).toUpperCase()}</div>
+              </div>
+            )}
+            {Array.isArray(decisionTrace.assignedAgents) && decisionTrace.assignedAgents.length > 0 && (
+              <div>
+                <div className="text-gray-400 text-xs">Selected Agents</div>
+                <div className="flex flex-wrap gap-2">
+                  {decisionTrace.assignedAgents.map((a: string) => (
+                    <span key={a} className="px-2 py-0.5 bg-gray-800 border border-gray-700 rounded-full text-xs">{a}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {Array.isArray(decisionTrace.agentResults) && decisionTrace.agentResults.length > 0 && (
+              <div>
+                <div className="text-gray-400 text-xs mb-1">Agent Responses</div>
+                <div className="space-y-2">
+                  {decisionTrace.agentResults.map((r: any, idx: number) => (
+                    <div key={idx} className="bg-black/40 p-2 rounded border border-gray-800">
+                      <div className="text-xs text-gray-400">{r.agentId || r.agentType || `agent-${idx+1}`}</div>
+                      <pre className="whitespace-pre-wrap break-words text-xs text-gray-300">{r.summary || (r.raw ? String(r.raw).slice(0, 200) : '—')}</pre>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div>
+              <div className="text-gray-400 text-xs">Final Decision</div>
+              <div className={`font-semibold ${decisionTrace.final?.status === 'Approved' ? 'text-green-400' : 'text-red-400'}`}>
+                {decisionTrace.final?.status}
+              </div>
+              {decisionTrace.final?.rationale && (
+                <div className="text-xs text-gray-300">{decisionTrace.final.rationale}</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Router Metadata */}
       <div className="grid grid-cols-2 gap-4">
