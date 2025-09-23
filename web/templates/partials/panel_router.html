@@ -1,0 +1,50 @@
+<section class="card accent-router">
+  <div class="card-head">
+    <h2>🧭 MoE Router</h2>
+  </div>
+  <div class="card-body">
+    {% if result and result.routing %}
+      <div class="grid kpis">
+        <div class="kpi">
+          <div class="kpi-label">Decision</div>
+          <div class="kpi-value">
+            {% if decision == 'Approved' %}
+              <span class="badge ok">Approved</span>
+            {% elif decision == 'Declined' %}
+              <span class="badge down">Declined</span>
+            {% else %}
+              <span class="chip">Unknown</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Confidence</div>
+          <div class="kpi-value">{{ '%.2f'|format(result.routing.confidence) }}</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Request ID</div>
+          <div class="kpi-value mono" style="font-size:12px">{{ result.routing.request_id }}</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="label">Category</div>
+        <div class="value">{{ request_templates[last_request.template].label if last_request and last_request.template in request_templates else '—' }}</div>
+      </div>
+      <div class="row">
+        <div class="label">Selected Agents</div>
+        <div class="value">
+          {% for a in result.routing.selected_agents %}
+            <span class="chip">{{ a }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="row">
+        <div class="label">Reasoning</div>
+        <div class="value">{{ result.routing.reasoning }}</div>
+      </div>
+    {% else %}
+      <div class="muted">No routing yet. Submit a request.</div>
+    {% endif %}
+  </div>
+</section>

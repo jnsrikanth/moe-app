@@ -1,0 +1,53 @@
+<section class="card accent-primary">
+  <div class="card-head">
+    <h2>📊 Metrics</h2>
+  </div>
+  <div class="card-body">
+    <div class="grid metrics-grid">
+      <div>
+        <div class="label" style="margin-bottom:8px">Use Cases (Total / Approved / Declined)</div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Use Case</th>
+              <th>Total</th>
+              <th>Approved</th>
+              <th>Declined</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if metrics.use_cases %}
+              {% for label, stat in metrics.use_cases.items() %}
+              <tr>
+                <td>{{ label }}</td>
+                <td>{{ stat.total }}</td>
+                <td class="ok">{{ stat.approved }}</td>
+                <td class="down">{{ stat.declined }}</td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="4" class="muted">No data yet</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="label" style="margin-bottom:8px">Agent Processing Counts</div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Agent</th>
+              <th>Requests Processed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set ag = metrics.agents or {} %}
+            <tr><td>Credit</td><td>{{ ag['credit-agent'] if 'credit-agent' in ag else 0 }}</td></tr>
+            <tr><td>Fraud</td><td>{{ ag['fraud-agent'] if 'fraud-agent' in ag else 0 }}</td></tr>
+            <tr><td>ESG</td><td>{{ ag['esg-agent'] if 'esg-agent' in ag else 0 }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>

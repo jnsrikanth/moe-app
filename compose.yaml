@@ -1,0 +1,80 @@
+version: "3.9"
+
+services:
+  credit:
+    build:
+      context: .
+      dockerfile: docker/credit.Dockerfile
+    image: moe/credit:local
+    environment:
+      PORT: "8080"
+      LOG_LEVEL: "WARNING"
+    ports:
+      - "8081:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request,sys,os; port=int(os.getenv(\"PORT\",\"8080\"));\nimport time;\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n;\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n;\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n;\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n;\n\n\n\n\n\n\n\n;\n\n\n\n\n\n\n;\n\nsys.exit(0) if urllib.request.urlopen(f'http://localhost:{port}/health', timeout=2) else sys.exit(1)'"]
+      interval: 5s
+      retries: 12
+    networks: [moe]
+
+  fraud:
+    build:
+      context: .
+      dockerfile: docker/fraud.Dockerfile
+    image: moe/fraud:local
+    environment:
+      PORT: "8080"
+      LOG_LEVEL: "WARNING"
+    ports:
+      - "8082:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request,sys,os; port=int(os.getenv(\"PORT\",\"8080\")); sys.exit(0) if urllib.request.urlopen(f'http://localhost:{port}/health', timeout=2) else sys.exit(1)'"]
+      interval: 5s
+      retries: 12
+    networks: [moe]
+
+  esg:
+    build:
+      context: .
+      dockerfile: docker/esg.Dockerfile
+    image: moe/esg:local
+    environment:
+      PORT: "8080"
+      LOG_LEVEL: "WARNING"
+    ports:
+      - "8083:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request,sys,os; port=int(os.getenv(\"PORT\",\"8080\")); sys.exit(0) if urllib.request.urlopen(f'http://localhost:{port}/health', timeout=2) else sys.exit(1)'"]
+      interval: 5s
+      retries: 12
+    networks: [moe]
+
+  moe-router:
+    build:
+      context: .
+      dockerfile: docker/moe_router.Dockerfile
+    image: moe/router:local
+    environment:
+      PORT: "8080"
+      LOG_LEVEL: "WARNING"
+      CREDIT_AGENT_URL: "http://credit:8080"
+      FRAUD_AGENT_URL: "http://fraud:8080"
+      ESG_AGENT_URL: "http://esg:8080"
+      ROUTER_STRATEGY: "rules" # default to rules to avoid Vertex AI dependency during local testing
+    ports:
+      - "8080:8080"
+    depends_on:
+      credit:
+        condition: service_healthy
+      fraud:
+        condition: service_healthy
+      esg:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request,sys,os; port=int(os.getenv(\"PORT\",\"8080\")); sys.exit(0) if urllib.request.urlopen(f'http://localhost:{port}/health', timeout=2) else sys.exit(1)'"]
+      interval: 5s
+      retries: 12
+    networks: [moe]
+
+networks:
+  moe: {}

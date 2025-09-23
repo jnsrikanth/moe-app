@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ title if title else 'MoE Dashboard' }}</title>
+    <link rel="stylesheet" href="/static/css/styles.css" />
+  </head>
+  <body>
+    <header class="container header">
+      <div class="brand">
+        <div class="logo">🛰️</div>
+        <h1>MoE Dashboard</h1>
+      </div>
+      <div class="status-row">
+        {% include 'partials/status.html' %}
+      </div>
+    </header>
+    <main class="container">
+      {% block content %}{% endblock %}
+    </main>
+    <footer class="container muted">
+      <small>Offline • Python-only • Minimal</small>
+    </footer>
+  </body>
+</html>

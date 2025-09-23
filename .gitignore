@@ -5,6 +5,9 @@ server/public
 vite.config.ts.*
 *.tar.gz
 
+# macOS artifacts
+.DS_Store
+
 # Environment variables
 .env
 .env.local
@@ -35,3 +38,11 @@ uploaded-datasets/
 
 # Yarn PnP artifacts (we're using nodeLinker: node-modules, but ignore if present)
 .pnp.*
+
+# Python/Local runtime artifacts
+.venv/
+.run/
+__pycache__/
+*.pyc
+*.log
+web/logs/

@@ -1,0 +1,18 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=8080 \
+    LOG_LEVEL=WARNING
+
+WORKDIR /app
+
+COPY vendor/python/py311/wheels /wheels
+COPY agents /app/agents
+COPY models /app/models
+
+RUN pip install --no-cache-dir --no-index --find-links=/wheels \
+    fastapi==0.115.0 uvicorn[standard]==0.30.6 pydantic==2.8.2 httpx==0.27.2 \
+    numpy==1.26.4 scipy==1.11.4 scikit-learn==1.4.2 joblib==1.4.2
+
+CMD ["sh", "-lc", "exec uvicorn agents.credit_agent.main:app --host 0.0.0.0 --port ${PORT}"]

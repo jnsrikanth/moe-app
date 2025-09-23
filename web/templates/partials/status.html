@@ -1,0 +1,6 @@
+<ul class="status inline">
+  <li><span class="badge {{ 'ok' if status.router == 'OK' else 'down' }}">Router</span></li>
+  <li><span class="badge {{ 'ok' if status.credit == 'OK' else 'down' }}">Credit</span></li>
+  <li><span class="badge {{ 'ok' if status.fraud == 'OK' else 'down' }}">Fraud</span></li>
+  <li><span class="badge {{ 'ok' if status.esg == 'OK' else 'down' }}">ESG</span></li>
+</ul>

@@ -1,0 +1,69 @@
+<section class="card accent-primary">
+  <div class="card-head">
+    <h2>📥 Request Builder</h2>
+  </div>
+  <form method="post" action="/route" class="card-body">
+    <div class="grid form-grid">
+      <label class="field">
+        <span class="label">Use Case</span>
+        <select id="template" name="template">
+          {% for key, tpl in request_templates.items() %}
+            <option value="{{ key }}" {% if last_request and last_request.template == key %}selected{% endif %}>{{ tpl.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        <span class="label">Type</span>
+        <select id="req_type" name="req_type">
+          <option value="credit" {% if last_request and last_request.type == 'credit' %}selected{% endif %}>Credit</option>
+          <option value="fraud" {% if last_request and last_request.type == 'fraud' %}selected{% endif %}>Fraud</option>
+          <option value="esg" {% if last_request and last_request.type == 'esg' %}selected{% endif %}>ESG</option>
+          <option value="general" {% if not last_request or last_request.type == 'general' %}selected{% endif %}>General</option>
+        </select>
+      </label>
+    </div>
+    <label class="field">
+      <span class="label">Content</span>
+      <textarea id="content" name="content" rows="5" placeholder="Describe your request...">{% if last_request %}{{ last_request.content }}{% endif %}</textarea>
+    </label>
+
+    <details class="details">
+      <summary class="label">Template metadata preview</summary>
+      <pre id="metadataPreview" class="pre-scroll mono"></pre>
+    </details>
+
+    <div class="row actions">
+      <div class="row" style="gap:10px; flex-wrap: wrap;">
+        <button type="submit" class="btn">Route</button>
+        <button name="content" value="please evaluate loan eligibility and credit score" class="btn ghost" type="submit">Sample Credit</button>
+        <button name="content" value="suspicious transaction check for recent purchases" class="btn ghost" type="submit">Sample Fraud</button>
+        <button name="content" value="environment and governance assessment summary" class="btn ghost" type="submit">Sample ESG</button>
+      </div>
+      <span class="muted">Router: {{ router_url }}</span>
+    </div>
+  </form>
+  <script>
+    (function(){
+      const templates = JSON.parse('{{ request_templates_json | safe }}');
+      const tplSel = document.getElementById('template');
+      const typeSel = document.getElementById('req_type');
+      const contentEl = document.getElementById('content');
+      const metaEl = document.getElementById('metadataPreview');
+      function applyTemplate(key) {
+        const t = templates[key] || templates['general'];
+        if (t && t.type) typeSel.value = t.type;
+        if (t && t.content) contentEl.value = t.content;
+        if (metaEl) metaEl.textContent = JSON.stringify(t && t.metadata ? t.metadata : {}, null, 2);
+      }
+      tplSel.addEventListener('change', (e) => applyTemplate(e.target.value));
+      {% if last_request %}
+        (function(){
+          const t = templates['{{ last_request.template if last_request and last_request.template else 'general' }}'];
+          if (t) { metaEl.textContent = JSON.stringify(t.metadata || {}, null, 2); }
+        })();
+      {% else %}
+        applyTemplate(tplSel.value);
+      {% endif %}
+    })();
+  </script>
+</section>

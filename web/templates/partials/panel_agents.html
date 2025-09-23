@@ -1,0 +1,60 @@
+<section class="card accent-agents">
+  <div class="card-head">
+    <h2>🤖 Agents</h2>
+  </div>
+  <div class="card-body">
+    <div class="agent-grid">
+      <div class="agent">
+        <div class="agent-head">
+          <div class="row" style="justify-content: space-between; width:100%">
+            <strong>Credit</strong>
+            <span class="badge {{ 'ok' if status.credit == 'OK' else 'down' }}">{{ status.credit }}</span>
+          </div>
+        </div>
+        <div class="agent-body">
+          {% set c = (result.responses['credit-agent'] if result and result.responses and 'credit-agent' in result.responses else None) %}
+          {% if c %}
+            <div class="muted">Last response</div>
+            <pre class="pre-scroll mono">{{ c.response }}</pre>
+          {% else %}
+            <div class="muted">No data yet.</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="agent">
+        <div class="agent-head">
+          <div class="row" style="justify-content: space-between; width:100%">
+            <strong>Fraud</strong>
+            <span class="badge {{ 'ok' if status.fraud == 'OK' else 'down' }}">{{ status.fraud }}</span>
+          </div>
+        </div>
+        <div class="agent-body">
+          {% set f = (result.responses['fraud-agent'] if result and result.responses and 'fraud-agent' in result.responses else None) %}
+          {% if f %}
+            <div class="muted">Last response</div>
+            <pre class="pre-scroll mono">{{ f.response }}</pre>
+          {% else %}
+            <div class="muted">No data yet.</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="agent">
+        <div class="agent-head">
+          <div class="row" style="justify-content: space-between; width:100%">
+            <strong>ESG</strong>
+            <span class="badge {{ 'ok' if status.esg == 'OK' else 'down' }}">{{ status.esg }}</span>
+          </div>
+        </div>
+        <div class="agent-body">
+          {% set e = (result.responses['esg-agent'] if result and result.responses and 'esg-agent' in result.responses else None) %}
+          {% if e %}
+            <div class="muted">Last response</div>
+            <pre class="pre-scroll mono">{{ e.response }}</pre>
+          {% else %}
+            <div class="muted">No data yet.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

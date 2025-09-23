@@ -1,0 +1,64 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/schema.json",
+  "tokens": {
+    "color": {
+      "bg": { "value": "#0b0e12" },
+      "surface": { "value": "#141922" },
+      "text": { "value": "#e6e8eb" },
+      "muted": { "value": "#9aa3ad" },
+      "primary": { "value": "#3b82f6" },
+      "success": { "value": "#19c37d" },
+      "warning": { "value": "#f59e0b" },
+      "error": { "value": "#f56565" },
+      "border": { "value": "#1f2937" }
+    },
+    "space": {
+      "0": { "value": "0px" },
+      "1": { "value": "4px" },
+      "2": { "value": "8px" },
+      "3": { "value": "12px" },
+      "4": { "value": "16px" },
+      "5": { "value": "20px" },
+      "6": { "value": "24px" },
+      "7": { "value": "32px" }
+    },
+    "radius": {
+      "sm": { "value": "4px" },
+      "md": { "value": "8px" },
+      "lg": { "value": "12px" }
+    },
+    "shadow": {
+      "card": { "value": "0 1px 2px rgba(0,0,0,0.15)" },
+      "elev": { "value": "0 6px 12px rgba(0,0,0,0.25)" }
+    },
+    "typography": {
+      "fontFamily": { "value": "system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial" },
+      "size": {
+        "sm": { "value": "12px" },
+        "md": { "value": "14px" },
+        "lg": { "value": "16px" },
+        "xl": { "value": "20px" }
+      },
+      "lineHeight": {
+        "tight": { "value": "1.3" },
+        "normal": { "value": "1.5" }
+      },
+      "weight": {
+        "regular": { "value": "400" },
+        "medium": { "value": "500" },
+        "bold": { "value": "700" }
+      }
+    },
+    "breakpoint": {
+      "sm": { "value": "640px" },
+      "md": { "value": "768px" },
+      "lg": { "value": "1024px" },
+      "xl": { "value": "1280px" }
+    }
+  },
+  "metadata": {
+    "brand": "Prime Rose",
+    "slogan": "Ethereal Blends",
+    "theme": "dark-minimal"
+  }
+}

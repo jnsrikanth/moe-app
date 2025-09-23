@@ -1,4 +1,11 @@
-# MoE (Mixture of Experts) Agent System - Cloud Run Ready
+# MoE Agents (Python-only)
+
+This directory contains the Python agents (Credit, Fraud, ESG) and the Router.
+
+- Local (offline) usage: scripts/deploy_local_offline.sh
+- Cloud Run deployment: docs/deploy/cloudrun.md
+
+Note: Older instructions referencing Next.js, Yarn, or separate web frontends are deprecated for this repository.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)

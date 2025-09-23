@@ -1,4 +1,10 @@
-# GCP Cloud Run Deployment Guide
+# DEPRECATED: GCP Cloud Run Deployment Guide (legacy)
+
+This document is superseded by the new canonical guide:
+
+- docs/deploy/cloudrun.md
+
+Please use the new guide for Docker-only, Python-only multi-service Cloud Run deployments.
 
 This guide covers deploying the MoE Router, Expert Agents, and Python ML service to Google Cloud Run with zero-install Yarn Berry and service-to-service auth.
 

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="grid app-grid">
+  <div class="col col-left">
+    {% include 'partials/panel_request.html' %}
+  </div>
+  <div class="col col-middle">
+    {% include 'partials/panel_router.html' %}
+  </div>
+  <div class="col col-right">
+    {% include 'partials/panel_agents.html' %}
+  </div>
+</section>
+
+{% if error %}
+<div class="card error mt">
+  <div class="card-head"><h2>Error</h2></div>
+  <div class="card-body">
+    <strong class="down">{{ error }}</strong>
+  </div>
+</div>
+{% endif %}
+
+<section class="grid" style="margin-top:16px">
+  <div class="col" style="grid-column: 1 / -1">
+    {% include 'partials/panel_metrics.html' %}
+  </div>
+</section>
+
+{% endblock %}

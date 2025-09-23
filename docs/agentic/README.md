@@ -1,4 +1,9 @@
-# MoE Router with Gemini 2.5 Flash Lite and Google Agentic Path
+# DEPRECATED: Agentic LLM Routing (reference only)
+
+This document describes an LLM-centric routing path (Vertex AI / Gemini). The current repo defaults to a Python-only, offline-ready implementation.
+
+For Cloud Run multi-service deployment, see:
+- docs/deploy/cloudrun.md
 
 This document explains:
 - Why and how to use an LLM (Gemini 2.5 Flash Lite) for a Mixture‑of‑Experts (MoE) router

@@ -1,4 +1,8 @@
-# GCP Deployment Guide for moe-app
+# DEPRECATED: GCP Deployment Guide (legacy)
+
+This document has been retired in favor of a simpler, Docker-only, Python-only process:
+
+- See docs/deploy/cloudrun.md for the current Cloud Run multi-service deployment.
 
 This guide describes how to migrate and operate moe-app on Google Cloud using:
 - Option A: Cloud Run (managed, simplest)
