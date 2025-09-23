@@ -4,7 +4,7 @@ services:
   credit:
     build:
       context: .
-      dockerfile: docker/credit.Dockerfile
+      dockerfile: Dockerfile.credit
     image: moe/credit:local
     environment:
       PORT: "8080"
@@ -20,7 +20,7 @@ services:
   fraud:
     build:
       context: .
-      dockerfile: docker/fraud.Dockerfile
+      dockerfile: Dockerfile.fraud
     image: moe/fraud:local
     environment:
       PORT: "8080"
@@ -36,7 +36,7 @@ services:
   esg:
     build:
       context: .
-      dockerfile: docker/esg.Dockerfile
+      dockerfile: Dockerfile.esg
     image: moe/esg:local
     environment:
       PORT: "8080"
@@ -52,7 +52,7 @@ services:
   moe-router:
     build:
       context: .
-      dockerfile: docker/moe_router.Dockerfile
+      dockerfile: Dockerfile.router
     image: moe/router:local
     environment:
       PORT: "8080"
