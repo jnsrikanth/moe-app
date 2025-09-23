@@ -50,8 +50,11 @@ create_venv() {
   if [ ! -d "$vdir" ]; then
     "$PY_BIN" -m venv "$vdir"
   fi
+  # Determine venv bin dir per OS
+  local bindir="$vdir/bin"
+  if [ "$IS_WIN" -eq 1 ]; then bindir="$vdir/Scripts"; fi
   # shellcheck source=/dev/null
-  source "$vdir/bin/activate"
+  source "$bindir/activate"
   pip install --no-index --find-links="$WHEELHOUSE" "${BASE_PKGS[@]}" "${ML_PKGS[@]}" || {
     echo "ERROR: Offline pip install failed for $name" >&2
     exit 1
@@ -67,8 +70,10 @@ create_venv dashboard
 
 # Install dashboard-specific dependency (jinja2) in its venv
 DASH_VENV="$ROOT_DIR/.venv/dashboard"
+DASH_BINDIR="$DASH_VENV/bin"
+if [ "$IS_WIN" -eq 1 ]; then DASH_BINDIR="$DASH_VENV/Scripts"; fi
 # shellcheck source=/dev/null
-source "$DASH_VENV/bin/activate"
+source "$DASH_BINDIR/activate"
 pip install --no-index --find-links="$WHEELHOUSE" jinja2==3.1.4 python-multipart==0.0.9 || {
   echo "ERROR: Offline pip install failed for dashboard (jinja2, python-multipart)" >&2
   exit 1

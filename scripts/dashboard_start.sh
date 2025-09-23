@@ -6,7 +6,10 @@ RUN_DIR="$ROOT_DIR/.run"
 mkdir -p "$RUN_DIR"
 
 PORT="${DASHBOARD_PORT:-8090}"
-PY="$ROOT_DIR/.venv/dashboard/bin/python"
+# Choose venv python based on OS
+PY_BIN_DIR="$ROOT_DIR/.venv/dashboard/bin"
+case "$(uname -s 2>/dev/null || echo unknown)" in MINGW*|MSYS*|CYGWIN*) PY_BIN_DIR="$ROOT_DIR/.venv/dashboard/Scripts";; esac
+PY="$PY_BIN_DIR/python"
 LOG="$RUN_DIR/web.log"
 PID="$RUN_DIR/web.pid"
 
