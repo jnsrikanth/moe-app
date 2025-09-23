@@ -1,0 +1,64 @@
+# Cloud Build Configuration for MoE App
+# This deploys directly from source without Docker
+
+steps:
+  # Step 1: Deploy Web App to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-web-app'
+    dir: 'web'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'moe-webapp'
+      - '--source'
+      - '.'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--cpu'
+      - '2'
+      - '--memory'
+      - '2Gi'
+      - '--max-instances'
+      - '100'
+      - '--min-instances'
+      - '1'
+      - '--set-env-vars'
+      - 'VERTEX_AI_PROJECT=$PROJECT_ID,VERTEX_AI_LOCATION=${_REGION},NODE_ENV=production'
+
+  # Step 2: Deploy Python Agents (Optional - if you want them separate)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-agents'
+    dir: 'agents'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'moe-agents'
+      - '--source'
+      - '.'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--cpu'
+      - '1'
+      - '--memory'
+      - '1Gi'
+      - '--set-env-vars'
+      - 'VERTEX_AI_PROJECT=$PROJECT_ID,VERTEX_AI_LOCATION=${_REGION}'
+    waitFor: ['deploy-web-app']
+
+# Substitutions (can be overridden)
+substitutions:
+  _REGION: 'us-central1'
+
+# Options
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+  
+# To trigger this build:
+# gcloud builds submit --config cloudbuild.yaml --substitutions=_REGION=us-central1

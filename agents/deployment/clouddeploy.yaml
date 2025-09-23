@@ -1,0 +1,75 @@
+# Google Cloud Deploy Configuration
+# Advanced deployment pipeline with approval gates
+
+apiVersion: deploy.cloud.google.com/v1
+kind: DeliveryPipeline
+metadata:
+  name: moe-app-pipeline
+description: MoE Application Deployment Pipeline
+serialPipeline:
+  stages:
+  - targetId: dev
+    profiles: [dev]
+  - targetId: staging
+    profiles: [staging]
+    strategy:
+      canary:
+        runtimeConfig:
+          cloudRun:
+            automaticTrafficControl: true
+        canaryDeployment:
+          percentages: [25, 50, 75]
+          verify: true
+  - targetId: production
+    profiles: [prod]
+    strategy:
+      standard:
+        verify: true
+        predeploy:
+          actions:
+          - wait:
+              waitDuration: 300s
+
+---
+# Dev Environment
+apiVersion: deploy.cloud.google.com/v1
+kind: Target
+metadata:
+  name: dev
+description: Development environment
+deployParameters:
+  minInstances: "0"
+  maxInstances: "10"
+run:
+  location: projects/PROJECT_ID/locations/us-central1
+
+---
+# Staging Environment
+apiVersion: deploy.cloud.google.com/v1
+kind: Target
+metadata:
+  name: staging
+description: Staging environment
+requireApproval: true
+deployParameters:
+  minInstances: "1"
+  maxInstances: "50"
+run:
+  location: projects/PROJECT_ID/locations/us-central1
+
+---
+# Production Environment
+apiVersion: deploy.cloud.google.com/v1
+kind: Target
+metadata:
+  name: production
+description: Production environment
+requireApproval: true
+deployParameters:
+  minInstances: "5"
+  maxInstances: "100"
+run:
+  location: projects/PROJECT_ID/locations/us-central1
+
+# To create this pipeline:
+# gcloud deploy apply --file=clouddeploy.yaml --region=us-central1

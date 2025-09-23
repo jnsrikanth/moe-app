@@ -1,0 +1,132 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install Python dependencies
+      run: |
+        cd raw-agent-code
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Install Node dependencies
+      run: |
+        cd web
+        npm ci
+    
+    - name: Run Python tests (if any)
+      run: |
+        cd raw-agent-code
+        # Add pytest commands when tests are available
+        echo "No tests yet - add tests in the future"
+    
+    - name: Build Next.js app
+      run: |
+        cd web
+        npm run build
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - id: 'auth'
+      name: 'Authenticate to Google Cloud'
+      uses: 'google-github-actions/auth@v2'
+      with:
+        credentials_json: '${{ secrets.GCP_SA_KEY }}'
+    
+    - name: 'Set up Cloud SDK'
+      uses: 'google-github-actions/setup-gcloud@v2'
+    
+    - name: 'Configure Docker for Artifact Registry'
+      run: |
+        gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+    
+    - name: 'Deploy MoE Router'
+      run: |
+        cd raw-agent-code
+        gcloud run deploy moe-router \
+          --source . \
+          --platform managed \
+          --region ${{ env.REGION }} \
+          --project ${{ env.PROJECT_ID }} \
+          --allow-unauthenticated \
+          --set-env-vars "VERTEX_AI_PROJECT=${{ env.PROJECT_ID }},VERTEX_AI_LOCATION=${{ env.REGION }}" \
+          --command "python,-m,moe_router.main"
+    
+    - name: 'Deploy Credit Agent'
+      run: |
+        cd raw-agent-code
+        gcloud run deploy credit-agent \
+          --source . \
+          --platform managed \
+          --region ${{ env.REGION }} \
+          --project ${{ env.PROJECT_ID }} \
+          --allow-unauthenticated \
+          --set-env-vars "VERTEX_AI_PROJECT=${{ env.PROJECT_ID }},VERTEX_AI_LOCATION=${{ env.REGION }}" \
+          --command "python,-m,credit_agent.main"
+    
+    - name: 'Deploy Fraud Agent'
+      run: |
+        cd raw-agent-code
+        gcloud run deploy fraud-agent \
+          --source . \
+          --platform managed \
+          --region ${{ env.REGION }} \
+          --project ${{ env.PROJECT_ID }} \
+          --allow-unauthenticated \
+          --set-env-vars "VERTEX_AI_PROJECT=${{ env.PROJECT_ID }},VERTEX_AI_LOCATION=${{ env.REGION }}" \
+          --command "python,-m,fraud_agent.main"
+    
+    - name: 'Deploy ESG Agent'
+      run: |
+        cd raw-agent-code
+        gcloud run deploy esg-agent \
+          --source . \
+          --platform managed \
+          --region ${{ env.REGION }} \
+          --project ${{ env.PROJECT_ID }} \
+          --allow-unauthenticated \
+          --set-env-vars "VERTEX_AI_PROJECT=${{ env.PROJECT_ID }},VERTEX_AI_LOCATION=${{ env.REGION }}" \
+          --command "python,-m,esg_agent.main"
+    
+    - name: 'Get Router URL and Deploy Web'
+      run: |
+        ROUTER_URL=$(gcloud run services describe moe-router --region ${{ env.REGION }} --project ${{ env.PROJECT_ID }} --format 'value(status.url)')
+        cd web
+        gcloud run deploy moe-web \
+          --source . \
+          --platform managed \
+          --region ${{ env.REGION }} \
+          --project ${{ env.PROJECT_ID }} \
+          --allow-unauthenticated \
+          --set-env-vars "NEXT_PUBLIC_API_URL=$ROUTER_URL"
