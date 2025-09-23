@@ -17,30 +17,15 @@ fi
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENDOR_DIR="$ROOT_DIR/vendor/python"
 
-# Discover available wheelhouses (portable on macOS bash 3.2)
+# Discover available wheelhouses (portable; no dependency on python3)
 available_wheel_mm=()
 if [ -d "$VENDOR_DIR" ]; then
-  # Use Python to safely enumerate wheelhouses even with spaces in paths
-  while IFS= read -r mm; do
-    [ -n "$mm" ] && available_wheel_mm+=("$mm")
-  done < <("${PYTHON:-python3}" - "$VENDOR_DIR" <<'PY'
-import os, sys
-root = sys.argv[1]
-seen = set()
-for dirpath, dirnames, filenames in os.walk(root):
-    base = os.path.basename(dirpath)
-    if base == 'wheels':
-        mm = os.path.basename(os.path.dirname(dirpath))
-        # ensure non-empty wheelhouse
-        try:
-            if any(os.scandir(dirpath)):
-                seen.add(mm)
-        except FileNotFoundError:
-            pass
-for mm in sorted(seen):
-    print(mm)
-PY
-  )
+  while IFS= read -r -d '' d; do
+    mm="$(basename "$(dirname "$d")")"
+    if ls -A "$d" >/dev/null 2>&1; then
+      available_wheel_mm+=("$mm")
+    fi
+  done < <(find "$VENDOR_DIR" -mindepth 2 -maxdepth 2 -type d -name wheels -print0 2>/dev/null || true)
 fi
 
 # Helper to get MAJMIN string for a python binary
@@ -54,19 +39,27 @@ PY
 
 # Collect candidates in priority order
 candidates=()
-if [ -n "${PYTHON:-}" ] && command -v "$PYTHON" >/dev/null 2>&1; then
-  candidates+=("$(command -v "$PYTHON")")
+# Prefer explicit PYTHON if provided
+if [ -n "${PYTHON:-}" ] && [ -x "$PYTHON" ]; then
+  candidates+=("$PYTHON")
 fi
+# Typical unix paths
 if command -v python3 >/dev/null 2>&1; then candidates+=("$(command -v python3)"); fi
-if command -v python >/dev/null 2>&1;  then candidates+=("$(command -v python)");  fi
-# Try common versioned binaries (include newer versions)
+if command -v python  >/dev/null 2>&1; then candidates+=("$(command -v python)");  fi
+# Versioned binaries
 for v in 3.13 3.12 3.11 3.10 3.9; do
   if command -v "python$v" >/dev/null 2>&1; then candidates+=("$(command -v "python$v")"); fi
   vv=${v/./}
   if command -v "python${vv}" >/dev/null 2>&1; then candidates+=("$(command -v "python${vv}")"); fi
 done
-
-# De-duplicate candidates while preserving order (portable)
+# Windows 'py' launcher support -> resolve real interpreter path(s)
+if command -v py >/dev/null 2>&1; then
+  for v in 3.13 3.12 3; do
+    p=$(py -$v -c 'import sys; print(sys.executable)' 2>/dev/null || true)
+    if [ -n "$p" ] && [ -x "$p" ]; then candidates+=("$p"); fi
+  done
+fi
+# De-duplicate candidates while preserving order
 if [ "${#candidates[@]}" -gt 0 ]; then
   uniq_candidates=()
   for c in "${candidates[@]}"; do
