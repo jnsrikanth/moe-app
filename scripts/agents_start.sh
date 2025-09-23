@@ -12,11 +12,9 @@ mkdir -p "$RUN_DIR"
 
 start_agent() {
   local name="$1" module="$2" port="$3" vname="$4"
-  local vdir="$ROOT_DIR/.venv/$vname"
-  local bindir="$vdir/bin"; case "$(uname -s 2>/dev/null || echo unknown)" in MINGW*|MSYS*|CYGWIN*) bindir="$vdir/Scripts";; esac
-  local py="$bindir/python"
-  if [ ! -x "$py" ]; then
-    echo "ERROR: venv for $name not found. Run: bash scripts/agents_install.sh" >&2
+  local venv="$ROOT_DIR/.venv/$vname/bin/python"
+  if [ ! -x "$venv" ]; then
+    echo "ERROR: venv for $name not found. Run: yarn agents:install" >&2
     exit 1
   fi
   local logfile="$RUN_DIR/$name.log"
@@ -26,7 +24,7 @@ start_agent() {
     return 0
   fi
   echo "Starting $name on :$port"
-  PORT="$port" "$py" -m uvicorn "$module":app --host 0.0.0.0 --port "$port" >"$logfile" 2>&1 &
+  PORT="$port" "$venv" -m uvicorn "$module":app --host 0.0.0.0 --port "$port" >"$logfile" 2>&1 &
   echo $! >"$pidfile"
 }
 

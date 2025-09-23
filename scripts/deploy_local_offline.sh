@@ -50,9 +50,7 @@ mkdir -p "$RUN_DIR"
 
 start_one() {
   local name="$1" module="$2" venvname="$3" port="$4"
-  local vdir="$ROOT_DIR/.venv/$venvname"
-  local bindir="$vdir/bin"; case "$(uname -s 2>/dev/null || echo unknown)" in MINGW*|MSYS*|CYGWIN*) bindir="$vdir/Scripts";; esac
-  local py="$bindir/python"
+  local py="$ROOT_DIR/.venv/$venvname/bin/python"
   local log="$RUN_DIR/$name.log"
   local pidf="$RUN_DIR/$name.pid"
   if [ ! -x "$py" ]; then echo "ERROR: venv for $name missing" >&2; exit 1; fi
