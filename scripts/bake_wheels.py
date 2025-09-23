@@ -9,7 +9,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-WHEELHOUSE = ROOT / "vendor/python/py311/wheels"
+PY_VER = f"py{sys.version_info.major}{sys.version_info.minor}"
+WHEELHOUSE = ROOT / f"vendor/python/{PY_VER}/wheels"
 AGENTS = [
     ROOT / "agents/credit_agent/pyproject.toml",
     ROOT / "agents/fraud_agent/pyproject.toml",
@@ -20,6 +21,15 @@ AGENTS = [
 
 def ensure_dirs():
     WHEELHOUSE.mkdir(parents=True, exist_ok=True)
+
+
+def ensure_pip():
+    # Ensure pip is available for the current interpreter
+    try:
+        subprocess.check_call([sys.executable, "-m", "ensurepip", "--upgrade"])  # works even if pip missing
+    except Exception:
+        pass
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
 
 
 def pip_download(requirements: list[str]):
@@ -38,6 +48,7 @@ def pip_download(requirements: list[str]):
 
 def main():
     ensure_dirs()
+    ensure_pip()
 
     # Core dependencies common across agents
     core = [

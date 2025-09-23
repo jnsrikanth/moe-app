@@ -17,22 +17,30 @@ fi
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENDOR_DIR="$ROOT_DIR/vendor/python"
 
-# Discover available wheelhouses
+# Discover available wheelhouses (portable on macOS bash 3.2)
 available_wheel_mm=()
 if [ -d "$VENDOR_DIR" ]; then
-  while IFS= read -r -d '' d; do
-    mm="$(basename "$(dirname "$d")")" # py311, py39
-    # ensure non-empty wheelhouse
-    if ls -A "$d" >/dev/null 2>&1; then
-      available_wheel_mm+=("$mm")
-    fi
-  done < <(find "$VENDOR_DIR" -mindepth 2 -maxdepth 2 -type d -name wheels -print0 2>/dev/null || true)
-fi
-
-# De-duplicate
-if [ "${#available_wheel_mm[@]}" -gt 0 ]; then
-  readarray -t available_wheel_mm < <(printf '%s
-' "${available_wheel_mm[@]}" | sort -u)
+  # Use Python to safely enumerate wheelhouses even with spaces in paths
+  while IFS= read -r mm; do
+    [ -n "$mm" ] && available_wheel_mm+=("$mm")
+  done < <("${PYTHON:-python3}" - "$VENDOR_DIR" <<'PY'
+import os, sys
+root = sys.argv[1]
+seen = set()
+for dirpath, dirnames, filenames in os.walk(root):
+    base = os.path.basename(dirpath)
+    if base == 'wheels':
+        mm = os.path.basename(os.path.dirname(dirpath))
+        # ensure non-empty wheelhouse
+        try:
+            if any(os.scandir(dirpath)):
+                seen.add(mm)
+        except FileNotFoundError:
+            pass
+for mm in sorted(seen):
+    print(mm)
+PY
+  )
 fi
 
 # Helper to get MAJMIN string for a python binary
@@ -40,7 +48,7 @@ py_mm_of() {
   local bin="$1"
   "$bin" - <<'PY'
 import sys
-print(f"py{sys.version_info[0]}{sys.version_info[1]}")
+print("py%u%u" % (sys.version_info[0], sys.version_info[1]))
 PY
 }
 
@@ -51,20 +59,28 @@ if [ -n "${PYTHON:-}" ] && command -v "$PYTHON" >/dev/null 2>&1; then
 fi
 if command -v python3 >/dev/null 2>&1; then candidates+=("$(command -v python3)"); fi
 if command -v python >/dev/null 2>&1;  then candidates+=("$(command -v python)");  fi
-# Try common versioned binaries
-for v in 3.11 3.10 3.9; do
+# Try common versioned binaries (include newer versions)
+for v in 3.13 3.12 3.11 3.10 3.9; do
   if command -v "python$v" >/dev/null 2>&1; then candidates+=("$(command -v "python$v")"); fi
-  if command -v "python${v/./}" >/dev/null 2>&1; then candidates+=("$(command -v "python${v/./}")"); fi
+  vv=${v/./}
+  if command -v "python${vv}" >/dev/null 2>&1; then candidates+=("$(command -v "python${vv}")"); fi
 done
 
-# De-duplicate candidates while preserving order
+# De-duplicate candidates while preserving order (portable)
 if [ "${#candidates[@]}" -gt 0 ]; then
-  readarray -t candidates < <(printf '%s
-' "${candidates[@]}" | awk '!seen[$0]++')
+  uniq_candidates=()
+  for c in "${candidates[@]}"; do
+    seen=0
+    for u in "${uniq_candidates[@]:-}"; do
+      [ "$u" = "$c" ] && seen=1 && break
+    done
+    [ $seen -eq 0 ] && uniq_candidates+=("$c")
+  done
+  candidates=("${uniq_candidates[@]}")
 fi
 
 choose_python_and_wheels() {
-  local bin mm wh
+  local bin mm wh avail
   # First pass: exact match to available wheelhouses
   for bin in "${candidates[@]}"; do
     if ! mm="$(py_mm_of "$bin" 2>/dev/null)"; then continue; fi
@@ -77,12 +93,18 @@ choose_python_and_wheels() {
       fi
     done
   done
-  # Second pass: accept any python if there is a default py311 wheelhouse
-  for bin in "${candidates[@]}"; do
-    if [ -d "$VENDOR_DIR/py311/wheels" ] && ls -A "$VENDOR_DIR/py311/wheels" >/dev/null 2>&1; then
-      PY_BIN="$bin"; PY_MM="py311"; WHEELHOUSE="$VENDOR_DIR/py311/wheels"; return 0
-    fi
-  done
+  # Optional second pass: if only py311 wheels exist, try to use a py311 interpreter if present
+  if printf '%s
+' "${available_wheel_mm[@]:-}" | grep -q '^py311$'; then
+    for bin in "${candidates[@]}"; do
+      if [ "$(py_mm_of "$bin" 2>/dev/null || true)" = "py311" ]; then
+        wh="$VENDOR_DIR/py311/wheels"
+        if [ -d "$wh" ] && ls -A "$wh" >/dev/null 2>&1; then
+          PY_BIN="$bin"; PY_MM="py311"; WHEELHOUSE="$wh"; return 0
+        fi
+      fi
+    done
+  fi
   return 1
 }
 
@@ -109,9 +131,8 @@ else
 fi
 cat >&2 <<'MSG'
 Resolution options:
-- Install Python 3.11 and re-run (recommended), OR
-- Provide matching wheels under vendor/python/py<maj><min>/wheels.
-  Example: vendor/python/py311/wheels
+- Install Python 3.11 locally (recommended for current wheelhouse), OR
+- Provide matching wheels under vendor/python/py<maj><min>/wheels (e.g., py313 for Python 3.13).
 If you have pyenv:
   pyenv install 3.11.9
   pyenv local 3.11.9
