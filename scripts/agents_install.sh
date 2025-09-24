@@ -35,7 +35,7 @@ SYS=$("$VENV_PY" -c 'import platform;print(platform.system())')
 local BASE_PKGS="fastapi==0.115.0 pydantic==2.8.2 httpx==0.27.2 numpy==1.26.4 scipy==1.11.4 scikit-learn==1.4.2 joblib==1.4.2 python-multipart==0.0.9 jinja2==3.1.4"
 local UVICORN_PKGS
 if [ "$SYS" = "Windows" ]; then
-  UVICORN_PKGS="uvicorn==0.30.6 websockets==15.0.1 watchfiles==1.1.0 httptools==0.6.4"
+  UVICORN_PKGS="uvicorn==0.30.6 websockets==15.0.1 watchfiles==1.1.0 httptools==0.6.4 colorama==0.4.6"
 else
   UVICORN_PKGS="uvicorn[standard]==0.30.6"
 fi
