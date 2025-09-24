@@ -14,6 +14,12 @@ from fastapi.templating import Jinja2Templates
 
 ROOT = Path(__file__).resolve().parent
 TEMPLATES = Jinja2Templates(directory=str(ROOT / "templates"))
+# Cache-busting token for static assets (updated on server start)
+try:
+    ASSET_VER = os.getenv("ASSET_VER") or datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    TEMPLATES.env.globals["ASSET_VER"] = ASSET_VER
+except Exception:
+    TEMPLATES.env.globals["ASSET_VER"] = "1"
 
 LOGS_DIR = ROOT / "logs" / "moe_requests"
 
