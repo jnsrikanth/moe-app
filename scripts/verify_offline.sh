@@ -6,12 +6,33 @@ cd "$ROOT_DIR"
 
 # Print environment diagnostics (deterministic)
 echo "[verify_offline] Repo: $ROOT_DIR"
-PY_BIN="${PY_BIN:-$(command -v python3 || true)}"
+# Try to resolve a python executable robustly (Windows Git Bash compatible)
+if [ -z "${PY_BIN:-}" ]; then
+  if command -v py >/dev/null 2>&1; then
+    PY_BIN=$(py -3.11 -c "import sys;print(sys.executable)" 2>/dev/null || true)
+    if [ -z "$PY_BIN" ]; then
+      PY_BIN=$(py -c "import sys;print(sys.executable)" 2>/dev/null || true)
+    fi
+  fi
+fi
+if [ -z "${PY_BIN:-}" ]; then
+  PY_BIN=$(command -v python3 2>/dev/null || true)
+fi
+if [ -z "${PY_BIN:-}" ]; then
+  PY_BIN=$(command -v python 2>/dev/null || true)
+fi
 if [ -n "$PY_BIN" ]; then
   echo "[verify_offline] Python: $($PY_BIN -V 2>&1) ($PY_BIN)"
-  echo "[verify_offline] Platform: $("$PY_BIN" -c 'import platform,sys;print(platform.platform());print(platform.machine());print(sys.implementation.name)')"
+  echo "[verify_offline] Platform: $("$PY_BIN" - <<'PY'
+import platform, sys
+print(platform.platform())
+print(platform.machine())
+print(sys.implementation.name)
+PY
+)"
 else
-  echo "[verify_offline] Python: not found in PATH" >&2
+  echo "ERROR: Python not found in PATH. On Windows, install Python 3.11 and ensure 'py' is available, or set PY_BIN to your Python path." >&2
+  exit 1
 fi
 
 WHEEL_DIR="vendor/python/py311/wheels"

@@ -14,7 +14,14 @@ if [ -n "${PY_BIN:-}" ] && [ -n "${PY_MM:-}" ] && [ -n "${WHEELHOUSE:-}" ]; then
   return 0 2>/dev/null || exit 0
 fi
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Allow parent script to provide ROOT_DIR; otherwise derive from this file location
+if [ -n "${ROOT_DIR:-}" ]; then
+  ROOT_DIR="$ROOT_DIR"
+elif [ -n "${BASH_SOURCE[0]:-}" ]; then
+  ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+else
+  ROOT_DIR="$(pwd)"
+fi
 VENDOR_DIR="$ROOT_DIR/vendor/python"
 
 # Discover available wheelhouses (portable on macOS bash 3.2)
@@ -145,9 +152,26 @@ else
   echo "No wheelhouses were found under $VENDOR_DIR." >&2
 fi
 # Platform hint
+HOST_UNAME=$(uname -s 2>/dev/null || echo "")
+HOST_SYS=""
+case "$HOST_UNAME" in
+  *MINGW*|*MSYS*|*CYGWIN*) HOST_SYS="Windows" ;;
+  Linux) HOST_SYS="Linux" ;;
+  Darwin) HOST_SYS="macOS" ;;
+  *) HOST_SYS="$HOST_UNAME" ;;
+esac
 if [ -d "$VENDOR_DIR/py311/wheels" ]; then
   if ls -1 "$VENDOR_DIR/py311/wheels" | grep -qi 'macosx'; then
-    echo "Hint: Your wheelhouse appears macOS-specific (macosx tags). For Linux CloudPC, bake manylinux wheels." >&2
+    if [ "$HOST_SYS" = "Windows" ]; then
+      echo "Hint: Your wheelhouse appears macOS-specific (macosx tags). For Windows CloudPC, fetch win_amd64 wheels." >&2
+    else
+      echo "Hint: Your wheelhouse appears macOS-specific (macosx tags)." >&2
+    fi
+  fi
+  if ls -1 "$VENDOR_DIR/py311/wheels" | grep -qi 'manylinux\|linux'; then
+    if [ "$HOST_SYS" = "Windows" ]; then
+      echo "Hint: Linux manylinux wheels detected. For Windows, ensure win_amd64 wheels are present too." >&2
+    fi
   fi
 fi
 cat >&2 <<'MSG'
