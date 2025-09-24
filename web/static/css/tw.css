@@ -11,3 +11,11 @@
   .btn-primary { @apply inline-flex items-center justify-center px-4 py-2 rounded-lg text-white shadow; background-color: var(--accent); border: 1px solid var(--accent-2); }
   .btn-ghost { @apply inline-flex items-center justify-center px-4 py-2 rounded-lg border; border-color: var(--border); background-color: transparent; color: var(--text); }
 }
+
+/* Reusable component classes for the dashboard */
+@layer components {
+  .icon-btn { @apply inline-flex items-center justify-center rounded-full border text-xs; width: 22px; height: 22px; line-height: 20px; background: var(--panel-2); color: var(--text); border-color: var(--border); }
+  .icon-btn.sm { width: 18px; height: 18px; line-height: 16px; font-size: 11px; }
+  .info-box { @apply hidden rounded-md; padding: 8px 10px; border: 1px dashed var(--border); font-size: 13px; background: var(--panel); color: var(--text); }
+  .pre-card { @apply rounded-md border; border-color: var(--border); background: var(--panel-3); }
+}

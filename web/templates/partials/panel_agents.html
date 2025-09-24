@@ -9,13 +9,12 @@
           <div class="row" style="justify-content: space-between; width:100%">
             <strong>Credit</strong>
             <div class="row" style="gap:6px; align-items:center">
-              <button type="button" class="agent-info-btn" data-target="agent-info-credit" aria-label="Credit info"
-                style="width:18px;height:18px;border-radius:50%;background:var(--panel-2);color:var(--text);border:1px solid var(--border);font-weight:bold;line-height:16px;text-align:center;font-size:11px">i</button>
+              <button type="button" class="agent-info-btn icon-btn sm" data-target="agent-info-credit" aria-label="Credit info" title="Credit agent info">i</button>
               <span class="badge {{ 'ok' if status.credit == 'OK' else 'down' }}">{{ status.credit }}</span>
             </div>
           </div>
         </div>
-        <div id="agent-info-credit" class="muted" style="display:none; padding:6px 8px; border:1px dashed var(--border); margin:6px 0; border-radius:6px; font-size:12px; background:var(--panel); color:var(--text)">
+        <div id="agent-info-credit" class="muted info-box" style="margin:6px 0">
           <ul style="margin:0 0 0 14px; padding:0">
             <li>Credit scoring (300–850) and risk level.</li>
             <li>Loan eligibility recommendation.</li>
@@ -37,13 +36,12 @@
           <div class="row" style="justify-content: space-between; width:100%">
             <strong>Fraud</strong>
             <div class="row" style="gap:6px; align-items:center">
-              <button type="button" class="agent-info-btn" data-target="agent-info-fraud" aria-label="Fraud info"
-                style="width:18px;height:18px;border-radius:50%;background:var(--panel-2);color:var(--text);border:1px solid var(--border);font-weight:bold;line-height:16px;text-align:center;font-size:11px">i</button>
+              <button type="button" class="agent-info-btn icon-btn sm" data-target="agent-info-fraud" aria-label="Fraud info" title="Fraud agent info">i</button>
               <span class="badge {{ 'ok' if status.fraud == 'OK' else 'down' }}">{{ status.fraud }}</span>
             </div>
           </div>
         </div>
-        <div id="agent-info-fraud" class="muted" style="display:none; padding:6px 8px; border:1px dashed var(--border); margin:6px 0; border-radius:6px; font-size:12px; background:var(--panel); color:var(--text)">
+        <div id="agent-info-fraud" class="muted info-box" style="margin:6px 0">
           <ul style="margin:0 0 0 14px; padding:0">
             <li>Transaction analysis & fraud indicators.</li>
             <li>Pattern checks and recommended action.</li>
@@ -65,13 +63,12 @@
           <div class="row" style="justify-content: space-between; width:100%">
             <strong>ESG</strong>
             <div class="row" style="gap:6px; align-items:center">
-              <button type="button" class="agent-info-btn" data-target="agent-info-esg" aria-label="ESG info"
-                style="width:18px;height:18px;border-radius:50%;background:var(--panel-2);color:var(--text);border:1px solid var(--border);font-weight:bold;line-height:16px;text-align:center;font-size:11px">i</button>
+              <button type="button" class="agent-info-btn icon-btn sm" data-target="agent-info-esg" aria-label="ESG info" title="ESG agent info">i</button>
               <span class="badge {{ 'ok' if status.esg == 'OK' else 'down' }}">{{ status.esg }}</span>
             </div>
           </div>
         </div>
-        <div id="agent-info-esg" class="muted" style="display:none; padding:6px 8px; border:1px dashed var(--border); margin:6px 0; border-radius:6px; font-size:12px; background:var(--panel); color:var(--text)">
+        <div id="agent-info-esg" class="muted info-box" style="margin:6px 0">
           <ul style="margin:0 0 0 14px; padding:0">
             <li>Environmental, Social, Governance sub‑scores.</li>
             <li>Overall ESG rating and recommendations.</li>

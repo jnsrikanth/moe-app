@@ -21,6 +21,7 @@ if [ -f "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null; then
 fi
 
 echo "Starting web dashboard on :$PORT"
-PORT="$PORT" "$PY" -m uvicorn web.app:app --host 0.0.0.0 --port "$PORT" >"$LOG" 2>&1 &
+# Ensure app module can be imported regardless of caller CWD
+PORT="$PORT" "$PY" -m uvicorn web.app:app --host 0.0.0.0 --port "$PORT" --app-dir "$ROOT_DIR" >"$LOG" 2>&1 &
 echo $! >"$PID"
 echo "Web dashboard started: http://localhost:$PORT"

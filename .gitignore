@@ -46,3 +46,6 @@ __pycache__/
 *.pyc
 *.log
 web/logs/
+
+# Local tools
+tools/tailwindcss

@@ -53,7 +53,7 @@
         <div style="margin-bottom:8px">
           <button id="fetch-decisions" class="btn">View Recent Decisions</button>
         </div>
-        <div id="decisions-box" class="card" style="display:none; max-height:180px; overflow:auto; padding:8px; margin-bottom:8px"></div>
+        <div id="decisions-box" class="card pre-card" style="display:none; max-height:180px; overflow:auto; padding:8px; margin-bottom:8px"></div>
         <table class="table">
           <tbody>
             {% set r = metrics.router or {} %}
@@ -72,7 +72,7 @@
           </tbody>
         </table>
         <div class="label" style="margin:12px 0 8px">Router Approval Trend</div>
-        <div style="background:#0d0d0d; border:1px solid #333; padding:4px; border-radius:6px; width:260px">
+        <div class="pre-card" style="padding:4px; border-radius:6px; width:260px">
           {% set trend = metrics.router_trend or {} %}
           {% if trend.path %}
             <svg width="240" height="48" viewBox="0 0 240 48">

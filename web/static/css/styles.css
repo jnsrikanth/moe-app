@@ -34,7 +34,8 @@
 /* Component-level dark adjustments for readability */
 :root[data-theme="dark"] select,
 :root[data-theme="dark"] textarea,
-:root[data-theme="dark"] input[type=text] {
+:root[data-theme="dark"] input[type=text],
+:root[data-theme="dark"] input[type=number]  {
   background: #0f131a;
   color: var(--text);
   border-color: var(--border);
@@ -95,9 +96,23 @@ body, .card, .agent, .kpi { text-rendering: optimizeLegibility; }
 
 /* Form */
 .form-grid { grid-template-columns: 2fr 1fr; }
-select, textarea, input[type=text] {
-  width: 100%; background: #f9fafb; color: var(--text); border: 1px solid var(--border);
+select, textarea, input[type=text], input[type=number] {
+  width: 100%; background: var(--panel-3); color: var(--text); border: 1px solid var(--border);
   border-radius: 10px; padding: 12px; resize: vertical;
+}
+select:focus, textarea:focus, input[type=text]:focus, input[type=number]:focus {
+  outline: 2px solid rgba(37,99,235,0.35);
+  outline-offset: 2px;
+}
+/* Fix Safari/WebKit autofill appearing white-on-white */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--text);
+  -webkit-box-shadow: 0 0 0px 1000px var(--panel-3) inset;
+  transition: background-color 9999s ease-in-out 0s;
 }
 
 /* Buttons */
