@@ -2,11 +2,11 @@
   <div class="card-head" style="display:flex;align-items:center;justify-content:space-between">
     <h2>🧭 MoE Router</h2>
     <button type="button" id="moe-info-btn" aria-label="MoE info"
-      style="width:22px;height:22px;border-radius:50%;background:#1f2937;color:#e5e7eb;border:1px solid #374151;font-weight:bold;line-height:20px;text-align:center;font-size:12px">
+      style="width:22px;height:22px;border-radius:50%;background:var(--panel-2);color:var(--text);border:1px solid var(--border);font-weight:bold;line-height:20px;text-align:center;font-size:12px">
       i
     </button>
   </div>
-  <div id="moe-info" class="muted" style="display:none; padding:8px 10px; border:1px dashed #374151; margin:6px 10px; border-radius:6px; font-size:13px">
+  <div id="moe-info" class="muted" style="display:none; padding:8px 10px; border:1px dashed var(--border); margin:6px 10px; border-radius:6px; font-size:13px; background:var(--panel); color:var(--text)">
     <ul style="margin:0 0 0 16px; padding:0">
       <li>Selects top‑K experts via a gating policy (rules + bandit, optional local model).</li>
       <li>Supports multi‑agent routing with a configurable score margin.</li>
