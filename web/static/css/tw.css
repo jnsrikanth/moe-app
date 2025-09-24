@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Bridge CSS variables and Tailwind defaults (optional) */
+@layer base {
+  html { color: var(--text); background-color: var(--bg); }
+  body { @apply antialiased; }
+  .card { @apply rounded-xl border; border-color: var(--border); background: var(--panel); }
+  .card-head { background: var(--panel-2); border-bottom: 1px solid var(--border); }
+  .btn-primary { @apply inline-flex items-center justify-center px-4 py-2 rounded-lg text-white shadow; background-color: var(--accent); border: 1px solid var(--accent-2); }
+  .btn-ghost { @apply inline-flex items-center justify-center px-4 py-2 rounded-lg border; border-color: var(--border); background-color: transparent; color: var(--text); }
+}
