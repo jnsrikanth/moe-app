@@ -24,30 +24,17 @@ else
 fi
 VENDOR_DIR="$ROOT_DIR/vendor/python"
 
-# Discover available wheelhouses (portable on macOS bash 3.2)
+# Discover available wheelhouses without requiring a Python binary
 available_wheel_mm=()
 if [ -d "$VENDOR_DIR" ]; then
-  # Use Python to safely enumerate wheelhouses even with spaces in paths
-  while IFS= read -r mm; do
-    [ -n "$mm" ] && available_wheel_mm+=("$mm")
-  done < <("${PYTHON:-python3}" - "$VENDOR_DIR" <<'PY'
-import os, sys
-root = sys.argv[1]
-seen = set()
-for dirpath, dirnames, filenames in os.walk(root):
-    base = os.path.basename(dirpath)
-    if base == 'wheels':
-        mm = os.path.basename(os.path.dirname(dirpath))
-        # ensure non-empty wheelhouse
-        try:
-            if any(os.scandir(dirpath)):
-                seen.add(mm)
-        except FileNotFoundError:
-            pass
-for mm in sorted(seen):
-    print(mm)
-PY
-  )
+  # Look for vendor/python/py*/wheels that contain at least one file
+  for d in "$VENDOR_DIR"/py*/wheels; do
+    [ -d "$d" ] || continue
+    if ls -A "$d" >/dev/null 2>&1; then
+      mm="$(basename "$(dirname "$d")")"
+      [ -n "$mm" ] && available_wheel_mm+=("$mm")
+    fi
+  done
 fi
 
 # Helper to get MAJMIN string for a python binary
