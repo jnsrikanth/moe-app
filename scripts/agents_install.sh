@@ -40,7 +40,9 @@ else
   UVICORN_PKGS="uvicorn[standard]==0.30.6"
 fi
 
-"$VENV_PY" -m pip install --no-index --find-links="$WHEELHOUSE" $BASE_PKGS $UVICORN_PKGS || {
+# Sanitize any pip user/site settings that would force --user (Windows safe)
+unset PIP_USER PYTHONUSERBASE PIP_TARGET PIP_REQUIRE_VIRTUALENV || true
+PIP_CONFIG_FILE=/dev/null PIP_DISABLE_PIP_VERSION_CHECK=1 "$VENV_PY" -m pip install --isolated --no-index --find-links="$WHEELHOUSE" $BASE_PKGS $UVICORN_PKGS || {
   echo "ERROR: Offline pip install failed for $name" >&2
   exit 1
 }
@@ -62,7 +64,9 @@ else
   echo "ERROR: dashboard venv python not found" >&2
   exit 1
 fi
-"$DASH_PY" -m pip install --no-index --find-links="$WHEELHOUSE" jinja2==3.1.4 python-multipart==0.0.9 || {
+# Sanitize pip env and install dashboard deps
+unset PIP_USER PYTHONUSERBASE PIP_TARGET PIP_REQUIRE_VIRTUALENV || true
+PIP_CONFIG_FILE=/dev/null PIP_DISABLE_PIP_VERSION_CHECK=1 "$DASH_PY" -m pip install --isolated --no-index --find-links="$WHEELHOUSE" jinja2==3.1.4 python-multipart==0.0.9 || {
   echo "ERROR: Offline pip install failed for dashboard (jinja2, python-multipart)" >&2
   exit 1
 }
