@@ -48,17 +48,19 @@ bash scripts/agents_stop.sh >/dev/null 2>&1 || true
 RUN_DIR="$ROOT_DIR/.run"
 mkdir -p "$RUN_DIR"
 
+vpy_for() {
+  local vname="$1"; local p
+  p="$ROOT_DIR/.venv/$vname/bin/python"
+  if [ -x "$p" ]; then echo "$p"; return 0; fi
+  p="$ROOT_DIR/.venv/$vname/Scripts/python.exe"
+  if [ -x "$p" ]; then echo "$p"; return 0; fi
+  return 1
+}
+
 start_one() {
   local name="$1" module="$2" venvname="$3" port="$4"
-  # Resolve venv python cross-platform
   local py
-  if [ -x "$ROOT_DIR/.venv/$venvname/bin/python" ]; then
-    py="$ROOT_DIR/.venv/$venvname/bin/python"
-  elif [ -x "$ROOT_DIR/.venv/$venvname/Scripts/python.exe" ]; then
-    py="$ROOT_DIR/.venv/$venvname/Scripts/python.exe"
-  else
-    echo "ERROR: venv for $name missing" >&2; exit 1
-  fi
+  py=$(vpy_for "$venvname") || { echo "ERROR: venv for $name missing" >&2; exit 1; }
   local log="$RUN_DIR/$name.log"
   local pidf="$RUN_DIR/$name.pid"
   echo "Starting $name on :$port"
@@ -66,15 +68,8 @@ start_one() {
   echo $! >"$pidf"
 }
 
-# Health parameters (increase retries on Windows Git Bash)
-HOST_UNAME=$(uname -s 2>/dev/null || echo "")
-case "$HOST_UNAME" in
-  *MINGW*|*MSYS*|*CYGWIN*) HEALTH_RETRIES=120 ;;
-  *) HEALTH_RETRIES=30 ;;
-esac
-
 wait_for() {
-  local url="$1"; local retries=${HEALTH_RETRIES:-30}; local delay=0.5
+  local url="$1"; local retries=30; local delay=0.5
   for _ in $(seq 1 $retries); do
     curl -fsS "$url" >/dev/null && return 0
     sleep "$delay"
@@ -82,26 +77,26 @@ wait_for() {
   return 1
 }
 
-# Start agents in order and wait for health (force IPv4 loopback)
+# Start agents in order and wait for health
 start_one credit agents.credit_agent.main credit "$CREDIT_PORT"
-wait_for "http://127.0.0.1:$CREDIT_PORT/health" && echo "Credit OK" || { echo "Credit FAILED"; exit 1; }
+wait_for "http://localhost:$CREDIT_PORT/health" && echo "Credit OK" || { echo "Credit FAILED"; exit 1; }
 
 start_one fraud agents.fraud_agent.main fraud "$FRAUD_PORT"
-wait_for "http://127.0.0.1:$FRAUD_PORT/health" && echo "Fraud OK" || { echo "Fraud FAILED"; exit 1; }
+wait_for "http://localhost:$FRAUD_PORT/health" && echo "Fraud OK" || { echo "Fraud FAILED"; exit 1; }
 
 start_one esg agents.esg_agent.main esg "$ESG_PORT"
-wait_for "http://127.0.0.1:$ESG_PORT/health" && echo "ESG OK" || { echo "ESG FAILED"; exit 1; }
+wait_for "http://localhost:$ESG_PORT/health" && echo "ESG OK" || { echo "ESG FAILED"; exit 1; }
 
 # Router after agents; passes on ROUTER_STRATEGY from env
 start_one router agents.moe_router.main router "$ROUTER_PORT"
-wait_for "http://127.0.0.1:$ROUTER_PORT/health" && echo "Router OK" || { echo "Router FAILED"; exit 1; }
+wait_for "http://localhost:$ROUTER_PORT/health" && echo "Router OK" || { echo "Router FAILED"; exit 1; }
 
 # Start web dashboard after router
 bash scripts/dashboard_start.sh
 
 # -------- Verify health --------
 retry_curl() {
-  local url="$1"; local retries=${HEALTH_RETRIES:-30}; local delay=0.5
+  local url="$1"; local retries=20; local delay=0.5
   for _ in $(seq 1 $retries); do
     if curl -fsS "$url" >/dev/null; then return 0; fi
     sleep "$delay"
@@ -110,26 +105,17 @@ retry_curl() {
 }
 
 set +e
-retry_curl "http://127.0.0.1:$ROUTER_PORT/health" && echo "Router OK" || { echo "Router FAILED"; exit 1; }
-retry_curl "http://127.0.0.1:$CREDIT_PORT/health" && echo "Credit OK" || { echo "Credit FAILED"; exit 1; }
-retry_curl "http://127.0.0.1:$FRAUD_PORT/health" && echo "Fraud OK" || { echo "Fraud FAILED"; exit 1; }
-retry_curl "http://127.0.0.1:$ESG_PORT/health" && echo "ESG OK" || { echo "ESG FAILED"; exit 1; }
+retry_curl "http://localhost:$ROUTER_PORT/health" && echo "Router OK" || { echo "Router FAILED"; exit 1; }
+retry_curl "http://localhost:$CREDIT_PORT/health" && echo "Credit OK" || { echo "Credit FAILED"; exit 1; }
+retry_curl "http://localhost:$FRAUD_PORT/health" && echo "Fraud OK" || { echo "Fraud FAILED"; exit 1; }
+retry_curl "http://localhost:$ESG_PORT/health" && echo "ESG OK" || { echo "ESG FAILED"; exit 1; }
 # Dashboard health
-retry_curl "http://127.0.0.1:${DASHBOARD_PORT:-8090}/health" && echo "Web Dashboard OK" || { echo "Web Dashboard FAILED"; exit 1; }
+retry_curl "http://localhost:${DASHBOARD_PORT:-8090}/health" && echo "Web Dashboard OK" || { echo "Web Dashboard FAILED"; exit 1; }
 set -e
 
 # -------- Print endpoints --------
 echo ""
 echo "Services running (offline):"
-echo "- Router: http://127.0.0.1:$ROUTER_PORT"
-echo "- Credit: http://127.0.0.1:$CREDIT_PORT"
-echo "- Fraud:  http://127.0.0.1:$FRAUD_PORT"
-echo "- ESG:    http://127.0.0.1:$ESG_PORT"
-echo "- Web:    http://127.0.0.1:${DASHBOARD_PORT:-8090}"
-
-echo ""
-echo "Sample route (credit):"
-echo "curl -s -X POST http://127.0.0.1:$ROUTER_PORT/route -H 'Content-Type: application/json' -d '{\n  \"type\":\"credit\",\n  \"content\":\"please evaluate loan eligibility and credit score\",\n  \"metadata\":{\"annual_income\":65000,\"debt_to_income\":0.32,\"credit_utilization\":0.28}\n}' | jq ."
 echo "- Router: http://localhost:$ROUTER_PORT"
 echo "- Credit: http://localhost:$CREDIT_PORT"
 echo "- Fraud:  http://localhost:$FRAUD_PORT"

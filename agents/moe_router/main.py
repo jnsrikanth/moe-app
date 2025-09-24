@@ -617,14 +617,14 @@ class RouterOrchestrator:
                 start_time = datetime.now()
                 response = await task
                 processing_time_ms = (datetime.now() - start_time).total_seconds() * 1000
-                
-responses[agent_id] = AgentResponse(
+
+                responses[agent_id] = AgentResponse(
                     request_id=request.id,
                     agent_id=agent_id,
                     response=response,
                     processing_time_ms=processing_time_ms
                 ).model_dump(mode="json")
-                
+
             except Exception as e:
                 logger.error(f"Agent {agent_id} failed: {e}")
                 responses[agent_id] = {
