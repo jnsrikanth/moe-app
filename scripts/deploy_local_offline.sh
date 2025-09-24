@@ -48,12 +48,21 @@ bash scripts/agents_stop.sh >/dev/null 2>&1 || true
 RUN_DIR="$ROOT_DIR/.run"
 mkdir -p "$RUN_DIR"
 
+vpy_for() {
+  local vname="$1"; local p
+  p="$ROOT_DIR/.venv/$vname/bin/python"
+  if [ -x "$p" ]; then echo "$p"; return 0; fi
+  p="$ROOT_DIR/.venv/$vname/Scripts/python.exe"
+  if [ -x "$p" ]; then echo "$p"; return 0; fi
+  return 1
+}
+
 start_one() {
   local name="$1" module="$2" venvname="$3" port="$4"
-  local py="$ROOT_DIR/.venv/$venvname/bin/python"
+  local py
+  py=$(vpy_for "$venvname") || { echo "ERROR: venv for $name missing" >&2; exit 1; }
   local log="$RUN_DIR/$name.log"
   local pidf="$RUN_DIR/$name.pid"
-  if [ ! -x "$py" ]; then echo "ERROR: venv for $name missing" >&2; exit 1; fi
   echo "Starting $name on :$port"
   PORT="$port" "$py" -m uvicorn "$module":app --host 0.0.0.0 --port "$port" >"$log" 2>&1 &
   echo $! >"$pidf"

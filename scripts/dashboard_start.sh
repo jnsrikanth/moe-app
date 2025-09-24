@@ -6,7 +6,14 @@ RUN_DIR="$ROOT_DIR/.run"
 mkdir -p "$RUN_DIR"
 
 PORT="${DASHBOARD_PORT:-8090}"
-PY="$ROOT_DIR/.venv/dashboard/bin/python"
+# Resolve venv python cross-platform
+if [ -x "$ROOT_DIR/.venv/dashboard/bin/python" ]; then
+  PY="$ROOT_DIR/.venv/dashboard/bin/python"
+elif [ -x "$ROOT_DIR/.venv/dashboard/Scripts/python.exe" ]; then
+  PY="$ROOT_DIR/.venv/dashboard/Scripts/python.exe"
+else
+  PY="$ROOT_DIR/.venv/dashboard/bin/python"
+fi
 LOG="$RUN_DIR/web.log"
 PID="$RUN_DIR/web.pid"
 

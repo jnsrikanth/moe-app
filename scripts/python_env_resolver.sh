@@ -54,12 +54,21 @@ PY
 
 # Collect candidates in priority order
 candidates=()
+# 1) Respect explicit override
 if [ -n "${PYTHON:-}" ] && command -v "$PYTHON" >/dev/null 2>&1; then
   candidates+=("$(command -v "$PYTHON")")
 fi
+# 2) Windows py launcher (prefer exact 3.11 if present)
+if command -v py >/dev/null 2>&1; then
+  py311=$(py -3.11 -c 'import sys;print(sys.executable)' 2>/dev/null || true)
+  if [ -n "$py311" ] && [ -x "$py311" ]; then candidates+=("$py311"); fi
+  pyx=$(py -c 'import sys;print(sys.executable)' 2>/dev/null || true)
+  if [ -n "$pyx" ] && [ -x "$pyx" ]; then candidates+=("$pyx"); fi
+fi
+# 3) Common unix-ish names
 if command -v python3 >/dev/null 2>&1; then candidates+=("$(command -v python3)"); fi
 if command -v python >/dev/null 2>&1;  then candidates+=("$(command -v python)");  fi
-# Try common versioned binaries (include newer versions)
+# 4) Versioned binaries
 for v in 3.13 3.12 3.11 3.10 3.9; do
   if command -v "python$v" >/dev/null 2>&1; then candidates+=("$(command -v "python$v")"); fi
   vv=${v/./}
@@ -111,6 +120,12 @@ choose_python_and_wheels() {
 if choose_python_and_wheels; then
   export PY_BIN PY_MM WHEELHOUSE
   echo "[python_env_resolver] Using: $($PY_BIN -V 2>&1) ($PY_BIN) with wheels: $WHEELHOUSE" >&2
+  echo "[python_env_resolver] Host platform: $("$PY_BIN" -c 'import platform;print(platform.system(), platform.machine())')" >&2
+  # Print a brief wheel tag summary to help spot platform mismatches
+  if [ -d "$WHEELHOUSE" ]; then
+    sample=$(ls -1 "$WHEELHOUSE" | head -5 | paste -sd ', ' -)
+    echo "[python_env_resolver] Sample wheels: ${sample}" >&2
+  fi
   return 0 2>/dev/null || exit 0
 fi
 
@@ -119,7 +134,7 @@ fi
 chosen="${candidates[0]:-}"
 if [ -n "$chosen" ]; then
   ver="$($chosen -V 2>&1 || true)"
-  echo "ERROR: Could not find a Python interpreter with a matching wheelhouse." >&2
+  echo "ERROR: Could not find a Python interpreter with a matching wheelhouse (py<maj><min>)." >&2
   echo "Detected candidate: $ver ($chosen)." >&2
 else
   echo "ERROR: No Python interpreter found in PATH." >&2
@@ -129,13 +144,19 @@ if [ "${#available_wheel_mm[@]}" -gt 0 ]; then
 else
   echo "No wheelhouses were found under $VENDOR_DIR." >&2
 fi
+# Platform hint
+if [ -d "$VENDOR_DIR/py311/wheels" ]; then
+  if ls -1 "$VENDOR_DIR/py311/wheels" | grep -qi 'macosx'; then
+    echo "Hint: Your wheelhouse appears macOS-specific (macosx tags). For Linux CloudPC, bake manylinux wheels." >&2
+  fi
+fi
 cat >&2 <<'MSG'
 Resolution options:
-- Install Python 3.11 locally (recommended for current wheelhouse), OR
-- Provide matching wheels under vendor/python/py<maj><min>/wheels (e.g., py313 for Python 3.13).
-If you have pyenv:
-  pyenv install 3.11.9
-  pyenv local 3.11.9
-Then re-run the deploy script.
+- Install a Python matching the available wheelhouse (e.g., 3.11 for py311), and
+- Ensure the wheelhouse contains wheels for your OS/arch (e.g., manylinux_x86_64 for Linux, macosx_* for macOS).
+To bake Linux (x86_64) wheels from Mac using Docker (internet required on Mac):
+  docker run --rm -v "$PWD":/work -w /work quay.io/pypa/manylinux2014_x86_64 \
+    /opt/python/cp311-cp311/bin/python scripts/bake_wheels.py
+Commit vendor/python/py311/wheels and pull on CloudPC, then re-run.
 MSG
 exit 1
