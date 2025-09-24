@@ -52,14 +52,19 @@ create_venv esg
 create_venv router
 create_venv dashboard
 
-# Install dashboard-specific dependency (jinja2) in its venv
-DASH_VENV="$ROOT_DIR/.venv/dashboard"
-# shellcheck source=/dev/null
-source "$DASH_VENV/bin/activate"
-pip install --no-index --find-links="$WHEELHOUSE" jinja2==3.1.4 python-multipart==0.0.9 || {
+# Install/ensure dashboard-specific dependencies without activating (cross-platform)
+DASH_PY=""
+if [ -x "$ROOT_DIR/.venv/dashboard/bin/python" ]; then
+  DASH_PY="$ROOT_DIR/.venv/dashboard/bin/python"
+elif [ -x "$ROOT_DIR/.venv/dashboard/Scripts/python.exe" ]; then
+  DASH_PY="$ROOT_DIR/.venv/dashboard/Scripts/python.exe"
+else
+  echo "ERROR: dashboard venv python not found" >&2
+  exit 1
+fi
+"$DASH_PY" -m pip install --no-index --find-links="$WHEELHOUSE" jinja2==3.1.4 python-multipart==0.0.9 || {
   echo "ERROR: Offline pip install failed for dashboard (jinja2, python-multipart)" >&2
   exit 1
 }
-deactivate || true
 
 echo "Python venvs installed with offline wheels (interpreter: $($PY_BIN -V 2>&1))."
