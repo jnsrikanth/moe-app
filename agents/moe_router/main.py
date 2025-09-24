@@ -422,7 +422,9 @@ class MoEGatingRouterStrategy(RouterStrategy):
 
 def compute_final_decision(responses: Dict[str, Any]) -> Dict[str, str]:
     # Parse agent responses looking for structured hints
-    joined = json.dumps(responses).lower()
+    # Ensure datetimes and other types are JSON-serializable
+    safe = jsonable_encoder(responses)
+    joined = json.dumps(safe).lower()
     if "final decision" in joined and ("approve" in joined or "approved" in joined):
         return {"status": "Approved", "rationale": "Explicit approval in agent outputs."}
     if "decline" in joined or "rejected" in joined:
@@ -616,12 +618,12 @@ class RouterOrchestrator:
                 response = await task
                 processing_time_ms = (datetime.now() - start_time).total_seconds() * 1000
                 
-                responses[agent_id] = AgentResponse(
+responses[agent_id] = AgentResponse(
                     request_id=request.id,
                     agent_id=agent_id,
                     response=response,
                     processing_time_ms=processing_time_ms
-                ).dict()
+                ).model_dump(mode="json")
                 
             except Exception as e:
                 logger.error(f"Agent {agent_id} failed: {e}")
