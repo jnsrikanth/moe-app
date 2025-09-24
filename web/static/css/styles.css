@@ -14,6 +14,22 @@
   --accent-3: #fbbf24;     /* amber-400 */
   --border: #e5e7eb;       /* light border */
 }
+
+/* Dark theme overrides (applied when html[data-theme="dark"]) */
+:root[data-theme="dark"] {
+  --bg: #0b0e12;
+  --panel: #0f141c;
+  --panel-2: #111826;
+  --panel-3: #0c1118;
+  --text: #e6e8eb;
+  --muted: #9aa3ad;
+  --ok: #19c37d;
+  --down: #f56565;
+  --accent: #3b82f6;
+  --accent-2: #14b8a6;
+  --accent-3: #eab308;
+  --border: #1f2937;
+}
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.6 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial; }
 /* soften overall contrast */

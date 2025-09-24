@@ -12,7 +12,9 @@
         <div class="logo">🛰️</div>
         <h1>MoE Dashboard</h1>
       </div>
-      <div class="status-row">
+      <div class="status-row" style="gap:8px">
+        <button id="theme-toggle" aria-label="Toggle theme" title="Toggle theme"
+          style="width:30px;height:30px;border-radius:999px;background:var(--panel-2);color:var(--text);border:1px solid var(--border);font-weight:bold;line-height:26px;text-align:center;font-size:14px">☼</button>
         {% include 'partials/status.html' %}
       </div>
     </header>
@@ -24,6 +26,32 @@
     </footer>
     <script>
       (function(){
+        // Theme toggle with persistence
+        const key='theme';
+        const applyLabel = (btn) => {
+          const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+          if (btn) btn.textContent = dark ? '☾' : '☼';
+        };
+        try {
+          const saved = localStorage.getItem(key);
+          if (saved === 'dark') document.documentElement.setAttribute('data-theme','dark');
+        } catch(e){}
+        const tbtn = document.getElementById('theme-toggle');
+        if (tbtn) {
+          applyLabel(tbtn);
+          tbtn.addEventListener('click', function(){
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            if (isDark) {
+              document.documentElement.removeAttribute('data-theme');
+              try { localStorage.setItem(key,'light'); } catch(e){}
+            } else {
+              document.documentElement.setAttribute('data-theme','dark');
+              try { localStorage.setItem(key,'dark'); } catch(e){}
+            }
+            applyLabel(tbtn);
+          });
+        }
+
         const btn = document.getElementById('fetch-decisions');
         if (!btn) return;
         const box = document.getElementById('decisions-box');
