@@ -20,7 +20,20 @@ create_venv() {
   fi
   # shellcheck source=/dev/null
   source "$vdir/bin/activate"
-  pip install --no-index --find-links="$WHEELHOUSE" fastapi==0.115.0 uvicorn[standard]==0.30.6 pydantic==2.8.2 httpx==0.27.2 numpy==1.26.4 scipy==1.11.4 scikit-learn==1.4.2 joblib==1.4.2 || {
+
+  # Determine platform to avoid uvloop on Windows (no wheels there)
+  local SYS
+  SYS=$("$PY_BIN" -c 'import platform;print(platform.system())')
+  local BASE_PKGS="fastapi==0.115.0 pydantic==2.8.2 httpx==0.27.2 numpy==1.26.4 scipy==1.11.4 scikit-learn==1.4.2 joblib==1.4.2 python-multipart==0.0.9 jinja2==3.1.4"
+  local UVICORN_PKGS
+  if [ "$SYS" = "Windows" ]; then
+    # Use uvicorn without extras and include compatible deps explicitly
+    UVICORN_PKGS="uvicorn==0.30.6 websockets==15.0.1 watchfiles==1.1.0 httptools==0.6.4"
+  else
+    UVICORN_PKGS="uvicorn[standard]==0.30.6"
+  fi
+
+  pip install --no-index --find-links="$WHEELHOUSE" $BASE_PKGS $UVICORN_PKGS || {
     echo "ERROR: Offline pip install failed for $name" >&2
     exit 1
   }
