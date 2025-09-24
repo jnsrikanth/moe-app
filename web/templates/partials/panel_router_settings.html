@@ -2,13 +2,21 @@
   <div class="card-head"><h2>🧭 Router Settings</h2></div>
   <div class="card-body">
     <form id="router-form" class="grid form-grid">
-      <label class="field">
+      <label class="field" style="position:relative">
         <span class="label">Engine</span>
         <select id="engine">
           <option value="rules">Rules</option>
           <option value="ml">ML (Bandit)</option>
           <option value="moe">MoE (Gating)</option>
         </select>
+        <div id="engine-info-balloon" class="muted" style="display:none; position:absolute; left:0; right:auto; top:62px; z-index:3; background:#0b1220; color:#d1d5db; border:1px solid #374151; border-radius:8px; padding:8px 10px; width:260px; box-shadow:0 8px 20px rgba(0,0,0,0.35)">
+          <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:4px">
+            <strong id="engine-info-title" style="font-size:13px">Engine</strong>
+            <button type="button" id="engine-info-close" aria-label="Close"
+              style="width:18px;height:18px;border-radius:50%;background:#111827;color:#e5e7eb;border:1px solid #374151;font-weight:bold;line-height:16px;text-align:center;font-size:11px">×</button>
+          </div>
+          <ul id="engine-info-list" style="margin:0 0 0 16px; padding:0; font-size:12px"></ul>
+        </div>
       </label>
       <label class="field">
         <span class="label">MoE Mode</span>
@@ -40,6 +48,47 @@
       const kEl = document.getElementById('moe_top_k');
       const mEl = document.getElementById('multi_margin');
       const statusEl = document.getElementById('router-status');
+
+      function engineInfo(engine){
+        const e = (engine||'').toLowerCase();
+        if (e === 'ml') {
+          return { title: 'ML (Bandit)', items: [
+            'Rules candidates + bandit selection.',
+            'Learns from decisions (adaptive).',
+            'Typically single-expert routing.',
+          ]};
+        }
+        if (e === 'moe' || e === 'gating') {
+          return { title: 'MoE (Gating)', items: [
+            'Top‑K experts with configurable margin.',
+            'Multi‑expert routing; bandit + optional model.',
+            'Aggregates into a final decision.',
+          ]};
+        }
+        return { title: 'Rules', items: [
+          'Keyword + registry bias (deterministic).',
+          'Always ready (no model).',
+          'Simple baseline; single expert.',
+        ]};
+      }
+
+      function showEngineInfo(engine){
+        const box = document.getElementById('engine-info-balloon');
+        const title = document.getElementById('engine-info-title');
+        const list = document.getElementById('engine-info-list');
+        const meta = engineInfo(engine);
+        if (box && title && list){
+          title.textContent = meta.title;
+          list.innerHTML = '';
+          meta.items.forEach((t)=>{ const li = document.createElement('li'); li.textContent = t; list.appendChild(li); });
+          box.style.display = 'block';
+        }
+      }
+
+      function hideEngineInfo(){
+        const box = document.getElementById('engine-info-balloon');
+        if (box) box.style.display = 'none';
+      }
 
       async function load() {
         try {
@@ -74,6 +123,18 @@
       }
 
       document.getElementById('apply-router').addEventListener('click', save);
+
+      // Info balloon behavior: show on select click/change, hide on close or outside click
+      engEl.addEventListener('click', ()=> showEngineInfo(engEl.value));
+      engEl.addEventListener('change', ()=> showEngineInfo(engEl.value));
+      document.getElementById('engine-info-close').addEventListener('click', hideEngineInfo);
+      document.addEventListener('click', (e)=>{
+        const box = document.getElementById('engine-info-balloon');
+        if (!box) return;
+        if (e.target === engEl || box.contains(e.target)) return;
+        hideEngineInfo();
+      });
+
       load();
     })();
   </script>

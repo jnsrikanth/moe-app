@@ -1,6 +1,18 @@
 <section class="card accent-router">
-  <div class="card-head">
+  <div class="card-head" style="display:flex;align-items:center;justify-content:space-between">
     <h2>🧭 MoE Router</h2>
+    <button type="button" id="moe-info-btn" aria-label="MoE info"
+      style="width:22px;height:22px;border-radius:50%;background:#1f2937;color:#e5e7eb;border:1px solid #374151;font-weight:bold;line-height:20px;text-align:center;font-size:12px">
+      i
+    </button>
+  </div>
+  <div id="moe-info" class="muted" style="display:none; padding:8px 10px; border:1px dashed #374151; margin:6px 10px; border-radius:6px; font-size:13px">
+    <ul style="margin:0 0 0 16px; padding:0">
+      <li>Selects top‑K experts via a gating policy (rules + bandit, optional local model).</li>
+      <li>Supports multi‑agent routing with a configurable score margin.</li>
+      <li>Aggregates expert outputs into a final Approved/Declined decision.</li>
+      <li>Persists decisions and adapts from outcomes offline.</li>
+    </ul>
   </div>
   <div class="card-body">
     {% if result and result.routing %}
@@ -47,4 +59,13 @@
       <div class="muted">No routing yet. Submit a request.</div>
     {% endif %}
   </div>
+  <script>
+    (function(){
+      const btn = document.getElementById('moe-info-btn');
+      const box = document.getElementById('moe-info');
+      if (btn && box) btn.addEventListener('click', () => {
+        box.style.display = (box.style.display === 'none' || !box.style.display) ? 'block' : 'none';
+      });
+    })();
+  </script>
 </section>

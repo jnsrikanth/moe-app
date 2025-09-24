@@ -1,0 +1,73 @@
+<section class="card" style="margin-top:10px">
+  <div class="card-head" style="display:flex;align-items:center;justify-content:space-between">
+    <h3>Router Engines — At a Glance</h3>
+    <span id="router-current-pill" class="badge" style="display:none"></span>
+  </div>
+  <div class="card-body">
+    <div id="router-compare" class="grid" style="grid-template-columns: repeat(3, 1fr); gap:10px">
+      <div id="box-rules" class="box" style="border:1px solid #374151; padding:10px; border-radius:8px">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <strong>Rules</strong>
+          <span class="chip">Deterministic</span>
+        </div>
+        <ul class="muted" style="margin:6px 0 0 16px; font-size:13px">
+          <li>Keyword + registry bias.</li>
+          <li>Always ready (no model needed).</li>
+          <li>Fast baseline; simple to explain.</li>
+        </ul>
+        <div class="muted" style="margin-top:8px; font-size:12px">Multi‑expert: <strong>No</strong></div>
+        <div class="muted" style="font-size:12px">Adapts by outcome: <strong>No</strong></div>
+      </div>
+      <div id="box-ml" class="box" style="border:1px solid #374151; padding:10px; border-radius:8px">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <strong>ML (Bandit)</strong>
+          <span class="chip">Adaptive</span>
+        </div>
+        <ul class="muted" style="margin:6px 0 0 16px; font-size:13px">
+          <li>Rules candidates + UCB selection.</li>
+          <li>Learns from decisions (bandit).</li>
+          <li>Good for single‑expert routing that improves over time.</li>
+        </ul>
+        <div class="muted" style="margin-top:8px; font-size:12px">Multi‑expert: <strong>Typically No</strong></div>
+        <div class="muted" style="font-size:12px">Adapts by outcome: <strong>Yes</strong></div>
+      </div>
+      <div id="box-moe" class="box" style="border:1px solid #374151; padding:10px; border-radius:8px">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <strong>MoE (Gating)</strong>
+          <span class="chip">Top‑K</span>
+        </div>
+        <ul class="muted" style="margin:6px 0 0 16px; font-size:13px">
+          <li>Top‑K selection by rules + bandit.</li>
+          <li>Configurable margin for multi‑agent routing.</li>
+          <li>Optional local model boost (joblib).</li>
+        </ul>
+        <div class="muted" style="margin-top:8px; font-size:12px">Multi‑expert: <strong>Yes</strong></div>
+        <div class="muted" style="font-size:12px">Adapts by outcome: <strong>Yes</strong></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (async function(){
+      try {
+        const R = '{{ router_url }}';
+        const resp = await fetch(R + '/router/config');
+        if (!resp.ok) return;
+        const cfg = await resp.json();
+        const cur = (cfg.engine || 'rules').toLowerCase();
+        const pill = document.getElementById('router-current-pill');
+        const boxes = { rules: 'box-rules', ml: 'box-ml', moe: 'box-moe', gating: 'box-moe' };
+        const sel = boxes[cur] || 'box-rules';
+        const node = document.getElementById(sel);
+        if (node) {
+          node.style.boxShadow = '0 0 0 2px #60a5fa inset';
+        }
+        if (pill) {
+          pill.textContent = 'Current: ' + (cur === 'ml' ? 'ML (Bandit)' : (cur === 'moe' || cur==='gating' ? 'MoE (Gating)' : 'Rules'));
+          pill.style.display = 'inline-block';
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+  </script>
+</section>
